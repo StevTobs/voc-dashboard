@@ -1,0 +1,40 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --pea-header-bg: #2e9b8f;
+  --pea-sidebar-bg: #d6f0e8;
+  --pea-sidebar-active-text: #1f6e63;
+  --pea-page-bg: #f7fafa;
+  --pea-kpi-cyan: #7fe0ea;
+  --pea-kpi-green: #c9efa0;
+  --pea-kpi-purple: #d9c7f0;
+  --pea-pill-active: #4fa8e8;
+  --pea-search-btn: #2563eb;
+  --pea-chart-bar: #bfa6a0;
+  --pea-tooltip-bg: #8fd9ce;
+  --pea-success-banner: #d9f2c4;
+  --pea-text-body: #333333;
+  --pea-border: #e2e8e8;
+  --pea-avatar-badge: #ec4899;
+}
+
+body {
+  margin: 0;
+  font-family: 'Noto Sans Thai', 'Sarabun', sans-serif;
+  color: var(--pea-text-body);
+  background-color: var(--pea-page-bg);
+}
+
+/* thin scrollbar for chart containers with internal scroll */
+.thin-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+.thin-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.thin-scrollbar::-webkit-scrollbar-thumb {
+  background-color: var(--pea-border);
+  border-radius: 3px;
+}
