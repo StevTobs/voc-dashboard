@@ -54,7 +54,7 @@ export function MultiSelectDropdown({
         aria-haspopup="listbox"
         aria-expanded={isOpen}
         onClick={() => setIsOpen((open) => !open)}
-        className="flex h-[38px] min-w-[150px] items-center justify-between gap-2 rounded-md border border-peaBorder bg-white px-3 text-sm text-textBody shadow-sm hover:border-headerBg"
+        className="flex min-w-[160px] items-center justify-between gap-2 rounded-md border border-peaBorder bg-white px-3 py-2 text-sm text-textBody shadow-sm hover:border-headerBg"
       >
         <span className="truncate">{summary}</span>
         <FiChevronDown className="shrink-0 text-textBody/60" />

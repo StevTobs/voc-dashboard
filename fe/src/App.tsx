@@ -32,9 +32,9 @@ function App() {
   }
 
   return (
-    <div className="mx-auto flex min-h-screen max-w-[1200px] flex-col bg-pageBg">
+    <div className="flex h-screen flex-col bg-pageBg">
       <Header currentUser={currentUser} />
-      <div className="flex flex-1 items-start">
+      <div className="flex min-h-0 flex-1">
         <Sidebar
           activePage={activePage}
           onSelectPage={(page) => {
@@ -45,7 +45,7 @@ function App() {
           onCloseMobile={() => setIsMobileSidebarOpen(false)}
           onLogout={handleLogout}
         />
-        <main className="min-w-0 flex-1">
+        <main className="min-w-0 flex-1 overflow-y-auto">
           <div className="p-3 md:hidden">
             <button
               type="button"

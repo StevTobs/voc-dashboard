@@ -9,16 +9,12 @@ interface KpiCardProps {
 
 function KpiCard({ label, value, colorClass, large }: KpiCardProps) {
   return (
-    <div className="flex flex-col items-center">
-      <span className="mb-3 text-center text-base font-semibold text-textBody">
-        {label}
-      </span>
+    <div
+      className={`flex flex-col justify-center rounded-lg ${colorClass} px-5 py-4 shadow-sm`}
+    >
+      <span className="text-sm font-medium text-textBody/80">{label}</span>
       <span
-        className={`flex items-center justify-center rounded-full font-bold text-textBody ${colorClass} ${
-          large
-            ? 'h-[110px] w-full max-w-[280px] text-3xl sm:text-[42px]'
-            : 'h-[90px] w-full max-w-[220px] text-2xl sm:text-[34px]'
-        }`}
+        className={`font-bold text-textBody ${large ? 'text-4xl' : 'text-2xl'}`}
       >
         {value.toLocaleString('th-TH')}
       </span>
@@ -33,11 +29,11 @@ interface StatusStatProps {
 
 function StatusStat({ label, value }: StatusStatProps) {
   return (
-    <div className="flex flex-col items-center justify-center text-center">
-      <span className="text-base font-semibold text-textBody">{label}</span>
-      <span className="mt-1 text-2xl font-bold text-textBody sm:text-[26px]">
+    <div className="flex flex-col items-center justify-center px-4 py-3 text-center">
+      <span className="text-3xl font-bold text-textBody">
         {value.toLocaleString('th-TH')}
       </span>
+      <span className="text-sm text-textBody/70">{label}</span>
     </div>
   );
 }
@@ -48,8 +44,8 @@ interface KpiCardsProps {
 
 export function KpiCards({ kpi }: KpiCardsProps) {
   return (
-    <div className="rounded-3xl bg-white p-6 shadow-[0_2px_12px_rgba(0,0,0,0.05)] sm:p-10">
-      <div className="grid grid-cols-1 gap-x-6 gap-y-8 sm:grid-cols-3 sm:gap-y-10">
+    <div className="space-y-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <KpiCard
           label="จำนวนเรื่องร้องเรียนทั้งหมด"
           value={kpi.totalComplaints}
@@ -62,11 +58,13 @@ export function KpiCards({ kpi }: KpiCardsProps) {
           value={kpi.regionNortheast}
           colorClass="bg-kpiGreen"
         />
-        <KpiCard label="สำนักงานใหญ่" value={kpi.regionHq} colorClass="bg-kpiPurple" large />
+      </div>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <KpiCard label="สำนักงานใหญ่" value={kpi.regionHq} colorClass="bg-kpiPurple" />
         <KpiCard label="ภาคกลาง" value={kpi.regionCentral} colorClass="bg-kpiGreen" />
         <KpiCard label="ภาคใต้" value={kpi.regionSouth} colorClass="bg-kpiGreen" />
       </div>
-      <div className="mt-8 grid grid-cols-3 gap-x-6 sm:mt-8">
+      <div className="grid grid-cols-3 divide-x divide-peaBorder rounded-lg border border-peaBorder bg-white">
         <StatusStat label="อยู่ระหว่างดำเนินการ" value={kpi.statusInProgress} />
         <StatusStat label="ปิดเรื่อง" value={kpi.statusClosed} />
         <StatusStat label="ยกเลิก" value={kpi.statusCancelled} />

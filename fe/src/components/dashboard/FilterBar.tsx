@@ -1,4 +1,3 @@
-import type { ReactNode } from 'react';
 import { FiSearch } from 'react-icons/fi';
 import type {
   DashboardFilters,
@@ -22,40 +21,35 @@ export function FilterBar({
   onSearch,
 }: FilterBarProps) {
   return (
-    <div>
-      <div className="flex flex-wrap items-center gap-x-5 gap-y-3">
-        <FilterField label="สถานะ">
-          <MultiSelectDropdown
-            label="สถานะ"
-            options={filterOptions.status}
-            selected={filters.status}
-            onChange={(status) => onChange({ ...filters, status })}
-          />
-        </FilterField>
-        <FilterField label="ปี">
-          <MultiSelectDropdown
-            label="ปี"
-            options={filterOptions.year}
-            selected={filters.year}
-            onChange={(year) => onChange({ ...filters, year })}
-          />
-        </FilterField>
-        <FilterField label="ไตรมาส">
-          <MultiSelectDropdown
-            label="ไตรมาส"
-            options={filterOptions.quarter}
-            selected={filters.quarter}
-            onChange={(quarter) => onChange({ ...filters, quarter })}
-          />
-        </FilterField>
-        <FilterField label="กรองประเภทเสียง level 1">
+    <div className="rounded-lg border border-peaBorder bg-white p-4 shadow-sm">
+      <div className="flex flex-wrap items-end gap-3">
+        <MultiSelectDropdown
+          label="สถานะ"
+          options={filterOptions.status}
+          selected={filters.status}
+          onChange={(status) => onChange({ ...filters, status })}
+        />
+        <MultiSelectDropdown
+          label="ปี"
+          options={filterOptions.year}
+          selected={filters.year}
+          onChange={(year) => onChange({ ...filters, year })}
+        />
+        <MultiSelectDropdown
+          label="ไตรมาส"
+          options={filterOptions.quarter}
+          selected={filters.quarter}
+          onChange={(quarter) => onChange({ ...filters, quarter })}
+        />
+        <label className="flex flex-col gap-1 text-sm text-textBody">
+          <span className="sr-only">กรองประเภทเสียง level 1</span>
           <select
             aria-label="กรองประเภทเสียง level 1"
             value={filters.voiceTypeLevel1}
             onChange={(e) =>
               onChange({ ...filters, voiceTypeLevel1: e.target.value })
             }
-            className="h-[38px] min-w-[180px] rounded-md border border-peaBorder bg-white px-3 text-sm text-textBody shadow-sm hover:border-headerBg"
+            className="min-w-[200px] rounded-md border border-peaBorder bg-white px-3 py-2 text-sm shadow-sm hover:border-headerBg"
           >
             {filterOptions.voiceTypeLevel1.map((option) => (
               <option key={option.value} value={option.value}>
@@ -63,39 +57,23 @@ export function FilterBar({
               </option>
             ))}
           </select>
-        </FilterField>
+        </label>
         <button
           type="button"
           aria-label="ค้นหา"
           onClick={onSearch}
-          className="ml-auto flex h-[38px] items-center gap-1.5 rounded-md bg-searchBtn px-4 text-sm font-semibold text-white shadow-sm hover:brightness-110"
+          className="flex items-center gap-2 rounded-md bg-searchBtn px-5 py-2 text-sm font-semibold text-white shadow-sm hover:brightness-110"
         >
           <FiSearch size={16} />
           ค้นหา
         </button>
       </div>
-      <div className="mt-4 flex flex-wrap items-center gap-2.5">
-        <span className="text-sm text-textBody/80">พื้นที่:</span>
+      <div className="mt-4">
         <RegionPills
           selected={filters.regions}
           onChange={(regions: RegionKey[]) => onChange({ ...filters, regions })}
         />
       </div>
-    </div>
-  );
-}
-
-function FilterField({
-  label,
-  children,
-}: {
-  label: string;
-  children: ReactNode;
-}) {
-  return (
-    <div className="flex items-center gap-2">
-      <span className="text-sm text-textBody/80">{label}</span>
-      {children}
     </div>
   );
 }

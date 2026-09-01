@@ -52,45 +52,41 @@ export function OverallPage() {
   }
 
   return (
-    <div className="px-4 pb-10 pt-6 sm:px-6 md:px-6 md:pt-10">
+    <div className="space-y-4 p-4 sm:p-6">
       <div>
         {hasSearched ? (
-          <div className="flex h-[50px] items-center rounded-xl bg-successBanner pl-6 text-sm font-medium text-textBody">
+          <div className="rounded-md bg-successBanner px-4 py-2 text-sm font-medium text-textBody">
             ข้อมูลได้ทำการอัพเดทเรียบร้อยแล้ว
           </div>
         ) : (
-          <h1 className="mb-2 text-2xl font-bold text-textBody sm:text-[30px]">
+          <h1 className="text-xl font-bold text-textBody">
             PEA Complain Overall
           </h1>
         )}
-        <p className="mb-6 mt-1.5 text-sm text-textBody/60">
+        <p className="mt-1 text-sm text-textBody/70">
           วันที่อัพเดทข้อมูลล่าสุด:{' '}
           {kpi ? formatThaiDateTime(kpi.lastUpdatedAt) : '-'}
         </p>
       </div>
 
-      <div className="space-y-6">
-        {filterOptions && (
-          <FilterBar
-            filters={draftFilters}
-            filterOptions={filterOptions}
-            onChange={setDraftFilters}
-            onSearch={handleSearch}
-          />
-        )}
+      {filterOptions && (
+        <FilterBar
+          filters={draftFilters}
+          filterOptions={filterOptions}
+          onChange={setDraftFilters}
+          onSearch={handleSearch}
+        />
+      )}
 
-        {kpi && <KpiCards kpi={kpi} />}
+      {kpi && <KpiCards kpi={kpi} />}
 
-        <DetailTable filters={appliedFilters} />
+      <DetailTable filters={appliedFilters} />
 
-        {charts && <ChartsSection charts={charts} />}
+      {charts && <ChartsSection charts={charts} />}
 
-        {isLoading && !kpi && (
-          <p className="text-center text-sm text-textBody/50">
-            กำลังโหลดข้อมูล...
-          </p>
-        )}
-      </div>
+      {isLoading && !kpi && (
+        <p className="text-center text-sm text-textBody/50">กำลังโหลดข้อมูล...</p>
+      )}
     </div>
   );
 }

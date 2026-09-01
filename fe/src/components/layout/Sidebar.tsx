@@ -52,7 +52,7 @@ export function Sidebar({
         />
       )}
       <aside
-        className={`fixed inset-y-0 left-0 z-40 flex w-64 shrink-0 flex-col bg-sidebarBg transition-transform duration-200 md:sticky md:top-[90px] md:h-[calc(100vh-90px)] md:w-[155px] md:translate-x-0 ${
+        className={`fixed inset-y-0 left-0 z-40 flex w-64 shrink-0 flex-col bg-sidebarBg transition-transform duration-200 md:static md:translate-x-0 ${
           isMobileOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
@@ -69,7 +69,7 @@ export function Sidebar({
             <FiX size={20} />
           </button>
         </div>
-        <nav className="flex-1 overflow-y-auto pt-4 md:pt-10">
+        <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-4">
           {SIDEBAR_ITEMS.map((item) => {
             const isActive = item.key === activePage;
             return (
@@ -79,24 +79,24 @@ export function Sidebar({
                 aria-label={item.label}
                 aria-current={isActive ? 'page' : undefined}
                 onClick={() => onSelectPage(item.key)}
-                className={`flex min-h-[70px] w-full items-start gap-2.5 py-3 pl-5 pr-3 text-left text-sm leading-snug transition-colors ${
+                className={`flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left text-sm transition-colors ${
                   isActive
-                    ? 'font-semibold text-sidebarActiveText'
-                    : 'text-textBody hover:text-sidebarActiveText'
+                    ? 'bg-white font-semibold text-sidebarActiveText shadow-sm'
+                    : 'text-textBody hover:bg-white/60'
                 }`}
               >
-                <span className="mt-0.5 shrink-0">{item.icon}</span>
-                <span>{item.label}</span>
+                {item.icon}
+                <span className="leading-tight">{item.label}</span>
               </button>
             );
           })}
         </nav>
-        <div className="px-3 pb-[30px]">
+        <div className="border-t border-peaBorder p-3">
           <button
             type="button"
             aria-label="ออกจากระบบ"
             onClick={onLogout}
-            className="flex w-full items-center gap-2.5 rounded-md px-2 py-2.5 text-left text-sm text-sidebarActiveText hover:bg-white/60"
+            className="flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left text-sm text-sidebarActiveText hover:bg-white/60"
           >
             <FiLogOut size={18} />
             <span>ออกจากระบบ</span>

@@ -13,13 +13,10 @@ import type { ChartDataPoint } from '../../types/dashboard';
 interface HorizontalBarChartProps {
   data: ChartDataPoint[];
   scrollable?: boolean;
-  height?: number;
-  domain?: [number, number];
-  ticks?: number[];
 }
 
-const BAR_ROW_HEIGHT = 40;
-const VISIBLE_HEIGHT = 260;
+const BAR_ROW_HEIGHT = 32;
+const VISIBLE_HEIGHT = 280;
 
 function formatAxisValue(value: number): string {
   if (value >= 1000) {
@@ -33,22 +30,14 @@ function ChartTooltip({ active, payload }: TooltipContentProps) {
   if (!active || !payload || payload.length === 0) return null;
   const point = payload[0].payload as ChartDataPoint;
   return (
-    <div className="relative rounded-md bg-tooltipBg px-2.5 py-1.5 text-xs font-medium text-textBody shadow-md">
+    <div className="rounded-md bg-tooltipBg px-3 py-1.5 text-sm font-medium text-textBody shadow-md">
       {point.label}: {formatAxisValue(point.value)}
-      <span className="absolute left-1/2 top-full h-0 w-0 -translate-x-1/2 border-x-[5px] border-t-[6px] border-x-transparent border-t-tooltipBg" />
     </div>
   );
 }
 
-export function HorizontalBarChart({
-  data,
-  scrollable,
-  height,
-  domain,
-  ticks,
-}: HorizontalBarChartProps) {
-  const contentHeight =
-    height ?? Math.max(data.length * BAR_ROW_HEIGHT, VISIBLE_HEIGHT);
+export function HorizontalBarChart({ data, scrollable }: HorizontalBarChartProps) {
+  const contentHeight = Math.max(data.length * BAR_ROW_HEIGHT, VISIBLE_HEIGHT);
   const containerHeight = scrollable ? VISIBLE_HEIGHT : contentHeight;
 
   const chart = (
@@ -61,8 +50,6 @@ export function HorizontalBarChart({
         <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#E2E8E8" />
         <XAxis
           type="number"
-          domain={domain}
-          ticks={ticks}
           tickFormatter={formatAxisValue}
           tick={{ fontSize: 11, fill: '#333' }}
         />
