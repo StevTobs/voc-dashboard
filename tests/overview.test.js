@@ -51,14 +51,14 @@ test('donut cross-selections intersect and all aggregates use the selected rows'
  }
 });
 
-test('donut groups areas into four regions and a region selection keeps only its areas', async () => {
+test('donut groups areas into four regions plus head office and a region selection keeps only its areas', async () => {
   const { aggregateOverview, selectOverviewRecords } = await import('../src/data/overview.js');
   const { zoneOf } = await import('../src/data/filters.js');
   const rows = ['ก.1', 'ก.3', 'สนญ.', 'ฉ.2', 'ต.1', 'น.3', 'ไม่ระบุ'].map(region => ({ region, voice_type_level1: 'ร้องเรียน' }));
   const zones = Object.fromEntries(aggregateOverview(rows).zones.map(row => [row.value, row.count]));
-  assert.deepEqual(zones, { 'ภาคกลาง': 3, 'ภาคตะวันออกเฉียงเหนือ': 1, 'ภาคใต้': 1, 'ภาคเหนือ': 1, 'ไม่ระบุ': 1 });
-  assert.equal(zoneOf('สนญ.'), 'ภาคกลาง');
+  assert.deepEqual(zones, { 'ภาคกลาง': 2, 'สำนักงานใหญ่': 1, 'ภาคตะวันออกเฉียงเหนือ': 1, 'ภาคใต้': 1, 'ภาคเหนือ': 1, 'ไม่ระบุ': 1 });
+  assert.equal(zoneOf('สนญ.'), 'สำนักงานใหญ่');
   const central = selectOverviewRecords(rows, { zone: 'ภาคกลาง', region: null, voice: null });
-  assert.deepEqual(central.map(row => row.region), ['ก.1', 'ก.3', 'สนญ.']);
+  assert.deepEqual(central.map(row => row.region), ['ก.1', 'ก.3']);
   assert.equal(selectOverviewRecords(rows, { zone: 'ภาคกลาง', region: 'ก.3', voice: null }).length, 1);
 });

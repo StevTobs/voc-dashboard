@@ -2,7 +2,8 @@
 
 GET  /api/complaints.csv  snapshot ล่าสุด คอลัมน์เดียวกับ public/data/complaints.csv
 GET  /api/status          สถานะ snapshot, refresh ล่าสุด และสถานะฐานข้อมูลภายใน/ภายนอก
-POST /api/refresh         สั่งดึงข้อมูลใหม่ทันที (ต้องมี header X-Buffer-Refresh: 1)
+POST /api/refresh         สั่งดึงข้อมูลใหม่ (ต้องมี header X-Buffer-Refresh: 1) — dashboard เรียกทุกครั้งที่เปิด/รีเฟรชหน้า
+                          ถ้า snapshot ใหม่กว่า MIN_REFRESH_SECONDS จะไม่ดึงซ้ำ เพื่อไม่ให้ผู้ใช้หลายคนพร้อมกันกดฐานข้อมูล
 """
 from __future__ import annotations
 
@@ -10,6 +11,8 @@ import json
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 from .core import Buffer
+
+MIN_REFRESH_SECONDS = 30
 
 
 def make_handler(buffer: Buffer):
@@ -47,8 +50,10 @@ def make_handler(buffer: Buffer):
             # header พิเศษบังคับให้เบราว์เซอร์ทำ preflight หน้าเว็บอื่นจึงสั่ง refresh แทนผู้ใช้ไม่ได้
             if self.headers.get("X-Buffer-Refresh") != "1":
                 return self._json(403, {"error": "missing X-Buffer-Refresh header"})
-            buffer.refresh()
-            buffer.check_health()
+            age = (buffer.status()["snapshot"] or {}).get("age_seconds")
+            if age is None or age >= MIN_REFRESH_SECONDS:
+                buffer.refresh()
+                buffer.check_health()
             self._json(200, buffer.status())
 
         def log_message(self, format, *args) -> None:  # noqa: A002 — ไม่ log ทุก request
