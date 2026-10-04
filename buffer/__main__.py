@@ -30,6 +30,17 @@ REPO_DIR = PACKAGE_DIR.parent
 DEFAULT_DB_TOOLS = Path.home() / "Desktop" / "pea_voc_db"
 
 
+def load_local_env() -> None:
+    """อ่าน .env ที่ root ของ repo (ถูก .gitignore) — ค่าที่ตั้งใน environment อยู่แล้วมีลำดับเหนือกว่า"""
+    env_file = REPO_DIR / ".env"
+    if not env_file.exists():
+        return
+    for line in env_file.read_text("utf-8").splitlines():
+        key, sep, value = line.strip().partition("=")
+        if sep and key and not key.startswith("#"):
+            os.environ.setdefault(key.strip(), value.strip())
+
+
 def connect_external() -> PostgresSource:
     """ต่อ PostgreSQL แบบ read-only ด้วยโค้ดเดิมของ pea_voc_db: ตรวจเครือข่าย → SSH tunnel (ถ้าตั้งไว้) → connect"""
     tools = Path(os.getenv("PEA_VOC_DB_DIR", DEFAULT_DB_TOOLS)).expanduser()
@@ -54,11 +65,12 @@ def connect_external() -> PostgresSource:
         tunnel = SSHTunnel(ssh_host, se._int_env("SSH_PORT", 22, 1, 65535), os.getenv("SSH_USER", "").strip(),
                            os.getenv("SSH_REMOTE_DB_HOST", "").strip(), se._int_env("SSH_REMOTE_DB_PORT", 5432, 1, 65535),
                            timeout=cfg.connect_timeout)
-        # รหัสผ่านใช้ตอนเชื่อมต่อเท่านั้น ไม่เก็บและไม่ log
-        local_port = tunnel.start(getpass.getpass(f"รหัสผ่าน SSH ของ {tunnel.ssh_user}@{ssh_host} (เว้นว่างเพื่อใช้ key): ") or None)
+        # รหัสผ่านใช้ตอนเชื่อมต่อเท่านั้น ไม่ log — อ่านจาก BUFFER_SSH_PASSWORD ถ้าตั้งไว้ ไม่งั้นถามใน Terminal
+        ssh_password = os.getenv("BUFFER_SSH_PASSWORD") or getpass.getpass(f"รหัสผ่าน SSH ของ {tunnel.ssh_user}@{ssh_host} (เว้นว่างเพื่อใช้ key): ")
+        local_port = tunnel.start(ssh_password or None)
         cfg = replace(cfg, host="127.0.0.1", port=local_port)
     try:
-        conn = se.connect(cfg, getpass.getpass(f"รหัสผ่านฐานข้อมูลของ {cfg.user}: "))
+        conn = se.connect(cfg, os.getenv("BUFFER_DB_PASSWORD") or getpass.getpass(f"รหัสผ่านฐานข้อมูลของ {cfg.user}: "))
     except Exception:
         if tunnel:
             tunnel.stop()
@@ -67,6 +79,7 @@ def connect_external() -> PostgresSource:
 
 
 def main() -> int:
+    load_local_env()
     parser = argparse.ArgumentParser(prog="python3 -m buffer", description="PEA VOC data buffer")
     parser.add_argument("--source", choices=["internal", "external"], default="internal", help="แหล่งข้อมูลที่ส่งให้ dashboard")
     parser.add_argument("--check-external", action="store_true", help="ตรวจสถานะฐานข้อมูลจริงด้วย แม้ใช้ dev.db เป็นแหล่งข้อมูล")
@@ -80,7 +93,8 @@ def main() -> int:
     args = parser.parse_args()
 
     mapping = json.loads(args.mapping.read_text("utf-8"))
-    internal = SqliteSource(args.db)
+    # โหมด external ไม่แตะ dev.db เลย (ไม่ดึง ไม่ตรวจสถานะ)
+    internal = SqliteSource(args.db) if args.source == "internal" else None
     external = connect_external() if args.source == "external" or args.check_external else None
     source = external if args.source == "external" else internal
 

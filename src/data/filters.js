@@ -4,11 +4,20 @@ import { STATUSES, VOICE_TYPES } from './schema.js';
 export const REGION_ORDER = ['ภาคเหนือ', 'ภาคตะวันออกเฉียงเหนือ', 'ภาคกลาง', 'ภาคใต้', 'สำนักงานใหญ่',
   // PEA areas (เขต) delivered by the database buffer
   'น.1', 'น.2', 'น.3', 'ฉ.1', 'ฉ.2', 'ฉ.3', 'ก.1', 'ก.2', 'ก.3', 'ต.1', 'ต.2', 'ต.3', 'สนญ.'];
+/** Areas (เขต) grouped into the four regions (ภาค) for the overview donut; head office counts as ภาคกลาง. */
+export const AREA_ZONES = {
+  'น.1':'ภาคเหนือ', 'น.2':'ภาคเหนือ', 'น.3':'ภาคเหนือ', 'ภาคเหนือ':'ภาคเหนือ',
+  'ฉ.1':'ภาคตะวันออกเฉียงเหนือ', 'ฉ.2':'ภาคตะวันออกเฉียงเหนือ', 'ฉ.3':'ภาคตะวันออกเฉียงเหนือ', 'ภาคตะวันออกเฉียงเหนือ':'ภาคตะวันออกเฉียงเหนือ',
+  'ก.1':'ภาคกลาง', 'ก.2':'ภาคกลาง', 'ก.3':'ภาคกลาง', 'สนญ.':'ภาคกลาง', 'สำนักงานใหญ่':'ภาคกลาง', 'ภาคกลาง':'ภาคกลาง',
+  'ต.1':'ภาคใต้', 'ต.2':'ภาคใต้', 'ต.3':'ภาคใต้', 'ภาคใต้':'ภาคใต้',
+};
+/** Region (ภาค) of an area; values outside the table (e.g. ไม่ระบุ) stay as they are. */
+export const zoneOf = region => AREA_ZONES[region] ?? region;
 const THAI_MONTHS = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
 
 /** The five main filters, each mapped to the CSV field it constrains. */
 export const FILTER_FIELDS = [
-  { key: 'status', label: 'สถานะ', field: 'status' },
+  { key: 'status', label: 'สถานะ', field: 'status', allLabel: 'ทุกสถานะ' },
   { key: 'month', label: 'เดือน', field: 'month' },
   { key: 'year', label: 'ปี', field: 'year' },
   { key: 'voice', label: 'ประเภทเสียง', field: 'voice_type_level1' },
@@ -28,10 +37,11 @@ const sorters = {
   voice: (a, b) => rankBy(VOICE_TYPES)(a) - rankBy(VOICE_TYPES)(b),
   region: (a, b) => rankBy(REGION_ORDER)(a) - rankBy(REGION_ORDER)(b) || String(a).localeCompare(String(b), 'th'),
   month: (a, b) => a - b,
-  year: (a, b) => a - b,
+  year: (a, b) => b - a, // newest year first
   office: (a, b) => String(a).localeCompare(String(b), 'th'),
 };
-const labels = { month: value => THAI_MONTHS[value - 1] ?? String(value) };
+// Years are stored as ค.ศ. (from created_at) but shown as พ.ศ.
+const labels = { month: value => THAI_MONTHS[value - 1] ?? String(value), year: value => String(value + 543) };
 
 /** Options come only from values present in the dataset. */
 export function deriveFilterOptions(records) {

@@ -9,10 +9,20 @@ export function Fade({ as: Tag = 'span', className = '', children, ...props }) {
 
 
 export const unknownVoiceType = { label: UNKNOWN_VALUE, color: 'unknown' };
-/** The five reference types, plus "ไม่ระบุ" only when the data actually contains it. */
-export function voiceTypesFor(rows) {
-  const hasUnknown = rows.some(row => row.value === UNKNOWN_VALUE || row.groups?.some(group => group.value === UNKNOWN_VALUE && group.count > 0));
-  return hasUnknown ? [...voiceTypes, unknownVoiceType] : voiceTypes;
+/** Charts only draw the five reference types; "ไม่ระบุ" is never charted. */
+export const voiceTypesFor = () => voiceTypes;
+
+/** "ไม่ระบุ" and fallback names such as "ไม่ระบุ (ฉ.2)" are left out of every chart. */
+export const isUnknown = value => String(value ?? '').startsWith(UNKNOWN_VALUE);
+/** Drops unknown rows and unknown stacked segments, then recounts so bars and percentages reflect only what is drawn. */
+export function withoutUnknown(rows) {
+  const kept = rows.filter(row => !isUnknown(row.value)).map(row => {
+    if (!row.groups) return row;
+    const groups = row.groups.filter(group => !isUnknown(group.value));
+    return { ...row, groups, count: groups.reduce((sum, group) => sum + group.count, 0) };
+  });
+  const total = kept.reduce((sum, row) => sum + row.count, 0);
+  return kept.map(row => ({ ...row, percentage: total ? row.count / total * 100 : 0 }));
 }
 
 export const voiceTypes = [

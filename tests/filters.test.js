@@ -89,3 +89,9 @@ test('การไฟฟ้า narrows the detail dataset and reports offices ou
   assert.deepEqual(mismatchedOffices({ ...filters, region: [south] }, options.office), [northOffice]);
   assert.deepEqual(mismatchedOffices({ ...filters, region: [] }, options.office), []);
 });
+
+test('year options are shown in พ.ศ., newest first', async () => {
+  const { deriveFilterOptions } = await import('../src/data/filters.js');
+  const rows = [2024, 2026, 2025].map(year => ({ year, month: 1, status: 'ปิด', voice_type_level1: 'ร้องเรียน', region: 'ก.1', pea_office: 'x' }));
+  assert.deepEqual(deriveFilterOptions(rows).year, [{ value: 2026, label: '2569' }, { value: 2025, label: '2568' }, { value: 2024, label: '2567' }]);
+});

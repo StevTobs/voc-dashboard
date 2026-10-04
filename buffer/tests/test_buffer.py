@@ -40,7 +40,7 @@ class TransformTest(unittest.TestCase):
         mapping = {**MAPPING, "voice_type": {"map": {"คำร้องเรียน": "ร้องเรียน"}}}
         records, report = build_records(tables(), mapping, AS_OF)
         self.assertEqual(records, [{
-            "complaint_id": "C-1", "created_at": "2026-08-01", "closed_at": "2026-08-10", "status": "ปิดคำร้อง", "year": 2026, "month": 8,
+            "complaint_id": "C-1", "created_at": "2026-08-01", "closed_at": "2026-08-10", "status": "ปิด", "year": 2026, "month": 8,
             "region": "ต.3", "pea_office": "กฟจ.ยะลา", "contact_channel": "Call Center", "voice_type_level1": "ร้องเรียน",
             "topic_level2": "บริการ", "issue_level3": "ค่าไฟฟ้าผิดปกติ", "subissue_level4": "บิลผิด", "sla_status": "ภายในกำหนด", "region_name": "ภาคใต้"}])
         self.assertEqual(report["unmapped"], {})
@@ -58,10 +58,53 @@ class TransformTest(unittest.TestCase):
         # request_pea L01201 → pea_office row whose region_group is L01201 → letter L → ต.3
         records, _ = build_records(tables(pea_office=[{"name": "กฟจ.ยะลา", "region_group": "l01201 "}]), MAPPING, AS_OF)
         self.assertEqual((records[0]["pea_office"], records[0]["region"]), ("กฟจ.ยะลา", "ต.3"))
-        # no pea_office row → region is unknown even though request_pea starts with a known letter
+        # no pea_office row → region falls back to the first letter of request_pea; office stays unknown
         records, report = build_records(tables(pea_office=[]), MAPPING, AS_OF)
-        self.assertEqual((records[0]["pea_office"], records[0]["region"]), ("ไม่ระบุ", "ไม่ระบุ"))
-        self.assertEqual(report["unmapped"]["region"]["top_values"], [["L01201 (ไม่พบใน pea_office)", 1]])
+        self.assertEqual((records[0]["pea_office"], records[0]["region"], records[0]["region_name"]), ("ไม่ระบุ (ต.3)", "ต.3", "ภาคใต้"))
+        self.assertNotIn("region", report["unmapped"])
+        self.assertEqual(report["adjusted"]["พื้นที่จากอักษรแรกของ request_pea (ไม่พบใน pea_office)"], 1)
+        # letter not in mapping.areas → unknown and reported
+        detail = {**tables()["voc_detail"][0], "request_pea": "X12345"}
+        records, report = build_records(tables(pea_office=[], voc_detail=[detail]), MAPPING, AS_OF)
+        self.assertEqual(records[0]["region"], "ไม่ระบุ")
+        self.assertEqual(report["unmapped"]["region"]["top_values"], [["X12345 (ไม่มีใน mapping.areas)", 1]])
+
+    def test_voice_type_comes_from_voc_request_types(self):
+        # request_type points at voc_request_types; voc_types is only the fallback for an older dev.db
+        records, report = build_records(tables(voc_request_types=[{"id": "t-req", "name": "แจ้งเหตุ"}]), MAPPING, AS_OF)
+        self.assertEqual(records[0]["voice_type_level1"], "แจ้งเหตุ")
+        self.assertNotIn("voice_type_level1", report["unmapped"])
+        stakeholder = [{"id": "t-req", "name": "เสียงของผู้มีส่วนได้ส่วนเสีย - แจ้งปัญหา"}]
+        self.assertEqual(build_records(tables(voc_request_types=stakeholder), MAPPING, AS_OF)[0][0]["voice_type_level1"], "ร้องเรียน")
+
+    def test_topic_and_sub_issue_come_from_their_own_tables(self):
+        records, report = build_records(tables(voc_topics=[{"id": "t-topic", "name": "ช่องทางและการให้บริการ"}],
+                                               voc_sub_issues=[{"id": "t-sub", "name": "ไฟกระพริบ"}]), MAPPING, AS_OF)
+        self.assertEqual((records[0]["topic_level2"], records[0]["subissue_level4"]), ("ช่องทางและการให้บริการ", "ไฟกระพริบ"))
+        self.assertNotIn("topic_level2", report["unmapped"])
+
+    def test_same_office_name_in_two_areas_gets_area_suffix(self):
+        base = tables()
+        masters = [base["voc_master"][0], {**base["voc_master"][0], "id": "m2", "voc_no": "C-2"}]
+        details = [base["voc_detail"][0], {**base["voc_detail"][0], "voc_master_id": "m2", "request_pea": "F01101"}]
+        offices = [{"name": "กฟอ.เฉลิมพระเกียรติ", "region_group": "L01201"}, {"name": "กฟอ.เฉลิมพระเกียรติ", "region_group": "F01101"}]
+        records, report = build_records(tables(voc_master=masters, voc_detail=details, pea_office=offices), MAPPING, AS_OF)
+        self.assertEqual([r["pea_office"] for r in records], ["กฟอ.เฉลิมพระเกียรติ (ต.3)", "กฟอ.เฉลิมพระเกียรติ (ฉ.3)"])
+        self.assertEqual(report["adjusted"]["ชื่อการไฟฟ้าซ้ำหลายเขต (ต่อท้ายด้วยเขต)"], 2)
+
+    def test_head_and_area_offices_use_department_names(self):
+        def office_for(code, departments):
+            detail = {**tables()["voc_detail"][0], "request_pea": code}
+            records, _ = build_records(tables(pea_office=[], voc_detail=[detail], voc_mas_department=departments), MAPPING, AS_OF)
+            return records[0]["region"], records[0]["pea_office"]
+        # one department name for the code → use it
+        self.assertEqual(office_for("A00000", [{"pea_code": "A00000", "dept_short": "กฟน.1", "is_deleted": False}]), ("น.1", "กฟน.1"))
+        # several departments share the code (head office) → use the region name rather than pick one
+        head = [{"pea_code": "Z00000", "dept_short": "สายงาน ธต", "is_deleted": False}, {"pea_code": "Z00000", "dept_short": "กลุ่มงาน ก", "is_deleted": False}]
+        self.assertEqual(office_for("Z00000", head), ("สนญ.", "สำนักงานใหญ่"))
+        # a region with several areas needs the area in the name, or one office name would span areas
+        north = [{**row, "pea_code": "B00000"} for row in head]
+        self.assertEqual(office_for("B00000", north), ("น.2", "ภาคเหนือ (น.2)"))
 
     def test_excluded_and_deleted_rows_are_skipped(self):
         master = tables()["voc_master"][0]

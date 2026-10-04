@@ -2,7 +2,9 @@ import React from 'react';
 
 export const navigation = [
   { path: '/overview', label: 'ภาพรวมด้านบริการ' },
-  { path: '/complaint-detail', label: 'ประเภทเสียงร้องเรียน' },
+  { path: '/complaint-detail', label: 'ประเภทเสียงร้องเรียน', detail: true },
+  // Placeholder page: menu and title only until its content is defined.
+  { path: '/power-quality', label: 'เสียงของลูกค้าด้านคุณภาพไฟฟ้า', blank: true },
 ];
 
 export default function Shell({ path, children }) {
@@ -16,7 +18,7 @@ export default function Shell({ path, children }) {
       <nav className="navigation" aria-label="เมนูหลัก">{navigation.map(item => <a key={item.path} href={`#${item.path}`} aria-current={path === item.path ? 'page' : undefined}>{item.label}</a>)}</nav>
       <div className="user-area"><span className="avatar" aria-hidden="true">P</span><span>ผู้ใช้งานทั่วไป</span></div>
     </div></header>
-    <main id="main" className={path === '/complaint-detail' ? 'complaint-detail-page' : undefined} tabIndex="-1">{children}</main>
+    <main id="main" className={navigation.find(item => item.path === path)?.detail ? 'complaint-detail-page' : undefined} tabIndex="-1">{children}</main>
     <footer>PEA VOC Dashboard <span className="credit">Created by แผนกวิเคราะห์สารสนเทศและพฤติกรรมลูกค้า กสล. โทร 02-009-6735</span></footer>
   </>;
 }

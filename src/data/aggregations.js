@@ -47,6 +47,7 @@ export function buildDataModel(records) {
   return {
     records,
     total: records.length,
+    earliestRecordDate: records.reduce((earliest, row) => !earliest || row.created_at < earliest ? row.created_at : earliest, '') || null,
     latestRecordDate: records.reduce((latest, row) => [latest, row.created_at, row.closed_at ?? ''].sort().at(-1), '') || null,
     filterOptions: Object.fromEntries(['status', 'month', 'year', 'voice_type_level1', 'region', 'pea_office', 'contact_channel'].map(field => [field, uniqueValues(records, field)])),
     regionOffices: buildRegionOffices(records),

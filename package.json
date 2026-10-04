@@ -6,9 +6,10 @@
   "scripts": {
     "dev": "vite --host 127.0.0.1",
     "build": "vite build",
+    "build:publish": "vite build --mode publish",
     "preview": "vite preview --host 127.0.0.1",
     "test": "node --test tests/*.test.js",
-    "dev:buffer": "VITE_DATA_URL=/api/complaints.csv vite --host 127.0.0.1",
+    "dev:buffer": "vite --host 127.0.0.1 --mode buffer",
     "buffer": "python3 -m buffer",
     "test:buffer": "python3 -m unittest discover -s buffer/tests -t ."
   },

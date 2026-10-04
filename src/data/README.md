@@ -7,7 +7,7 @@ Source: `public/data/complaints.csv` (UTF-8, one request per row). All records a
 | complaint_id | string | Required, unique; duplicates are excluded after the first valid row |
 | created_at | string | Valid Gregorian YYYY-MM-DD date, retained without timezone conversion |
 | closed_at | string or null | Blank becomes null; required only when closed; cannot precede created_at |
-| status | enum | รับเรื่อง / อยู่ระหว่างดำเนินการ / ปิดคำร้อง |
+| status | enum | ปิด / รอดำเนินการ / กำลังดำเนินการ / ส่งต่อ |
 | year | number | Gregorian year; must match created_at |
 | month | number | 1–12; must match created_at |
 | region | string | Required area group |
@@ -58,7 +58,7 @@ Changing the CSV does not render charts or fill KPI cards in this round. The cou
 `aggregateOverview(records)` in `overview.js` is the only overview aggregation entry point. `Overview.jsx` passes its single shared provider dataset into it once and supplies the results to all overview components.
 
 - Total: number of valid CSV records, across all five voice types.
-- Closed: status ปิดคำร้อง. Pending: both รับเรื่อง and อยู่ระหว่างดำเนินการ. This partitions all records without dropping newly received requests.
+- Closed (ปิดคำร้อง box): status ปิด. Pending (อยู่ระหว่างดำเนินการ box): รอดำเนินการ, กำลังดำเนินการ and ส่งต่อ. This partitions all records without dropping newly received requests.
 - Group percentages: closed or pending count / all records × 100.
 - SLA cards: count of each `sla_status` within the group; percentage denominator is that group's count. Empty denominators yield zero.
 - Donuts: counts grouped by region or voice_type_level1; denominator is the total dataset.

@@ -56,6 +56,19 @@ npm run dev             # dashboard แบบเดิม อ่าน Mock CSV
 - รหัสผ่านกรอกใน Terminal ตอนเริ่ม ใช้แล้วทิ้ง ถ้าการเชื่อมต่อหลุด สถานะจะเป็น "เชื่อมต่อไม่ได้" และต้องเริ่ม buffer ใหม่
 - buffer ใช้ snapshot ล่าสุดต่อเมื่อดึงข้อมูลไม่สำเร็จ และแจ้ง "ข้อมูลอาจไม่เป็นปัจจุบัน"
 
+### Publish บน Windows (http://<เครื่องนี้>/test/voc-dashboard/)
+
+1. สร้าง `.env` ที่ root ของ repo นี้ (ถูก .gitignore):
+   ```
+   PEA_VOC_DB_DIR=C:/Users/<user>/Desktop/DEV-TOP/pea-voc-database-query
+   BUFFER_SSH_PASSWORD=...
+   BUFFER_DB_PASSWORD=...
+   ```
+   ถ้าไม่ใส่รหัสผ่าน buffer จะถามใน Terminal เหมือนเดิม
+2. `npm run build:publish` — build ให้ใช้ base `/test/voc-dashboard/` และอ่านข้อมูลจาก `/test/voc-dashboard/api/complaints.csv`
+3. ดับเบิลคลิก `publish-buffer.bat` — เริ่ม buffer (`--source external`) และเริ่มใหม่อัตโนมัติถ้าการเชื่อมต่อหลุด
+4. Caddy (`pea-voc-database-query/Caddyfile`) ส่ง `/test/voc-dashboard/api/*` ไป buffer และเสิร์ฟ `dist/` สำหรับ path อื่น
+
 ตัวเลือกอื่น: `--refresh` (วินาที, ค่าเริ่มต้น 300), `--health` (60), `--port` (8765), `--db`, `--mapping`
 
 ## API

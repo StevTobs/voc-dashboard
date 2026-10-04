@@ -20,7 +20,13 @@ COLUMNS: Dict[str, List[str]] = {
     "voc_issues": ["id", "name"],
     "voc_types": ["id", "name"],
     "pea_office": ["name", "region_group"],
+    "voc_mas_department": ["pea_code", "dept_short", "is_deleted"],
+    "voc_request_types": ["id", "name"],
+    "voc_topics": ["id", "name"],
+    "voc_sub_issues": ["id", "name"],
 }
+# ตารางเสริม: ถ้าไม่มีใน dev.db ให้ข้ามได้ (ฐานข้อมูลจริงมีครบ)
+OPTIONAL_TABLES = {"voc_mas_department", "voc_request_types", "voc_topics", "voc_sub_issues"}
 # ตารางที่มี updated_at ใช้ดูความสดของข้อมูล
 FRESHNESS_TABLES = ["voc_master", "voc_detail", "voc_tracking"]
 
@@ -50,8 +56,9 @@ class SqliteSource:
 
     def fetch_tables(self) -> Dict[str, List[Dict[str, Any]]]:
         with self._connect() as conn:
+            existing = {row[0] for row in conn.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
             return {table: [dict(row) for row in conn.execute(f'SELECT {", ".join(columns)} FROM "{table}"')]
-                    for table, columns in COLUMNS.items()}
+                    for table, columns in COLUMNS.items() if table in existing or table not in OPTIONAL_TABLES}
 
     def health(self) -> Dict[str, Any]:
         started = time.monotonic()

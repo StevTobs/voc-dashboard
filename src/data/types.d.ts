@@ -3,7 +3,7 @@ export interface ComplaintRecord {
   /** Gregorian date-only YYYY-MM-DD, no timezone conversion. */
   created_at: string;
   closed_at: string | null;
-  status: 'รับเรื่อง' | 'อยู่ระหว่างดำเนินการ' | 'ปิดคำร้อง';
+  status: 'ปิด' | 'รอดำเนินการ' | 'กำลังดำเนินการ' | 'ส่งต่อ';
   year: number;
   month: number;
   region: string;

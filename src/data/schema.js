@@ -1,5 +1,7 @@
 /** Canonical business categories, not metric values or filter options. */
-export const STATUSES = ['รับเรื่อง', 'อยู่ระหว่างดำเนินการ', 'ปิดคำร้อง'];
+/** Status groups as in voc_status.group_status_th; every status except ปิด counts as อยู่ระหว่างดำเนินการ. */
+export const STATUSES = ['ปิด', 'รอดำเนินการ', 'กำลังดำเนินการ', 'ส่งต่อ'];
+export const CLOSED_STATUS = 'ปิด';
 export const VOICE_TYPES = ['ร้องเรียน', 'ข้อเสนอแนะ/ข้อคิดเห็น', 'แจ้งเหตุ', 'แจ้งเบาะแส', 'ชื่นชม'];
 /** Data from the database buffer uses this when a source value has no mapping yet (see buffer/mapping.json). */
 export const UNKNOWN_VALUE = 'ไม่ระบุ';
@@ -30,7 +32,7 @@ export function normalizeRecord(raw) {
   if (!STATUSES.includes(record.status)) throw Error('status: unknown category');
   if (!VOICE_TYPES.includes(record.voice_type_level1) && record.voice_type_level1 !== UNKNOWN_VALUE) throw Error('voice_type_level1: unknown category');
   if (!SLA_STATUSES.includes(record.sla_status)) throw Error('sla_status: unknown category');
-  if ((record.status === 'ปิดคำร้อง') !== Boolean(record.closed_at)) throw Error('closed_at: required only for closed records');
+  if ((record.status === CLOSED_STATUS) !== Boolean(record.closed_at)) throw Error('closed_at: required only for closed records');
   if (record.closed_at && record.closed_at < record.created_at) throw Error('closed_at: precedes created_at');
   if (record.closed_at && record.sla_status === 'ใกล้ครบกำหนด') throw Error('sla_status: closed record cannot be nearing deadline');
   return Object.freeze(record);

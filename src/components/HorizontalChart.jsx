@@ -1,9 +1,10 @@
 import React from 'react';
-import { voiceTypesFor } from './Cards.jsx';
+import { voiceTypesFor, withoutUnknown } from './Cards.jsx';
 
 const format = value => value.toLocaleString('th-TH', { maximumFractionDigits: 1 });
 
-export default function HorizontalChart({ title, rows, stacked = false, colored = false, status }) {
+export default function HorizontalChart({ title, rows: allRows, stacked = false, colored = false, status }) {
+  const rows = withoutUnknown(allRows);
   const maximum = Math.max(1, ...rows.map(row => row.count));
   const ceiling = Math.ceil(maximum / 5) * 5;
   const voiceTypes = voiceTypesFor(rows);

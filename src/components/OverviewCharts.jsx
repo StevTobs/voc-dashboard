@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react';
-import { Card, Fade, unknownVoiceType, voiceTypes, voiceTypesFor } from './Cards.jsx';
+import { Card, Fade, unknownVoiceType, voiceTypes, voiceTypesFor, withoutUnknown } from './Cards.jsx';
 import { REGION_ORDER } from '../data/filters.js';
 import { numberLabel, percentLabel } from '../data/overview.js';
 
@@ -14,7 +14,10 @@ const RING_OUTER = 144;
 const LEADER_RADIUS = 160;
 const message = status => status === 'loading' ? 'กำลังโหลดข้อมูล…' : status === 'error' ? 'โหลดข้อมูลไม่สำเร็จ' : 'ไม่พบข้อมูล';
 
-export function DonutChart({ title, rows, total, status, voice = false, selected, onSelect }) {
+export function DonutChart({ title, rows: allRows, status, voice = false, selected, onSelect }) {
+  // ไม่ระบุ is not charted: slices, percentages and the centre total cover only the drawn categories.
+  const rows = withoutUnknown(allRows);
+  const total = rows.reduce((sum, row) => sum + row.count, 0);
   const order = voice
     ? ['ข้อเสนอแนะ/ข้อคิดเห็น', 'แจ้งเหตุ', 'แจ้งเบาะแส', 'ชื่นชม', 'ร้องเรียน']
     : ['ภาคกลาง', 'สำนักงานใหญ่', 'ภาคตะวันออกเฉียงเหนือ', 'ภาคเหนือ', 'ภาคใต้', ...REGION_ORDER.slice(5)];
@@ -75,13 +78,17 @@ export function DonutChart({ title, rows, total, status, voice = false, selected
   </Card>;
 }
 
-export function OfficeChart({ rows, status, onSelect, title = 'เสียงของลูกค้าจำแนกตามการไฟฟ้า' }) {
+export function OfficeChart({ rows: allRows, status, onSelect, title = 'เสียงของลูกค้าจำแนกตามการไฟฟ้า' }) {
+  const rows = withoutUnknown(allRows);
   const visible = rows.filter(row => !row.hidden);
   const types = voiceTypesFor(visible);
   const clickable = row => Boolean(onSelect && row.selectable && !row.hidden);
   const maximum = Math.max(0, ...rows.map(row => row.count));
-  const step = Math.max(1, Math.ceil(maximum / 5));
-  const ceiling = step * 5;
+  // Gridline step rounded up to 1, 2, 2.5 or 5 × 10ⁿ (axis reads 0 / 1,000 / 2,000 …); 3–6 steps reach just above the tallest bar.
+  const rough = Math.max(1, maximum / 6), magnitude = 10 ** Math.floor(Math.log10(rough));
+  const step = Math.max(1, Math.ceil([1, 2, 2.5, 5, 10].find(factor => factor * magnitude >= rough) * magnitude));
+  const steps = Math.max(3, Math.ceil(maximum / step));
+  const ceiling = step * steps;
   const areaRef = useRef(null);
   const tipRef = useRef(null);
   const [hover, setHover] = useState(null);
@@ -97,8 +104,8 @@ export function OfficeChart({ rows, status, onSelect, title = 'เสียง�
   const focusBar = (row, element) => { const box = element.getBoundingClientRect(); place(row, box.left + box.width / 2, box.top); };
   return <Card title={title} fadeTitle className="chart-card main-chart live-office-chart">
     {status !== 'ready' || !visible.length ? <div className="overview-empty">{message(status)}</div> : <>
-      <div className="office-chart-area" ref={areaRef}>
-        <div className="office-axis" aria-hidden="true">{Array.from({length:6}, (_, i) => <Fade key={i}>{numberLabel(ceiling - i * step)}</Fade>)}</div>
+      <div className="office-chart-area" ref={areaRef} style={{ '--grid-step': `${100 / steps}%` }}>
+        <div className="office-axis" aria-hidden="true">{Array.from({length:steps + 1}, (_, i) => <Fade key={i}>{numberLabel(ceiling - i * step)}</Fade>)}</div>
         <div className="office-scroll" onScroll={() => setHover(null)}><div className="office-columns" style={{minWidth:`${visible.length * 66}px`}}>
           {rows.map(row => <div className={`office-column${row.hidden ? ' is-hidden' : ''}`} key={row.key ?? row.value} aria-hidden={row.hidden || undefined}>
             <div className="office-bar-space"><div className={`office-bar${clickable(row) ? ' is-clickable' : ''}`} style={{height:`${row.count / ceiling * 100}%`}} tabIndex={row.hidden ? -1 : 0} role={clickable(row) ? 'button' : 'img'} aria-label={`${row.value}: ${numberLabel(row.count)} เรื่อง`}
@@ -118,7 +125,6 @@ export function OfficeChart({ rows, status, onSelect, title = 'เสียง�
           </div>)}
         </div>}
       </div>
-      <ul className="legend">{types.map(type => <li key={type.color}><span className={`dot ${type.color}`} />{type.label}</li>)}</ul>
     </>}
   </Card>;
 }

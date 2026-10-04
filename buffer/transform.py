@@ -15,7 +15,7 @@ DASHBOARD_FIELDS = [
     "contact_channel", "voice_type_level1", "topic_level2", "issue_level3", "subissue_level4", "sla_status",
 ]
 OUTPUT_FIELDS = DASHBOARD_FIELDS + ["region_name"]
-CLOSED = "ปิดคำร้อง"
+CLOSED = "ปิด"
 
 
 def parse_datetime(value: Any) -> Optional[datetime]:
@@ -82,9 +82,24 @@ def build_records(tables: Dict[str, List[Dict[str, Any]]], mapping: Dict[str, An
     channel_name = {row["id"]: row["name"] for row in tables.get("voc_channels", [])}
     issue_name = {row["id"]: row["name"] for row in tables.get("voc_issues", [])}
     type_name = {row["id"]: row["name"] for row in tables.get("voc_types", [])}
+    # voc_master.request_type อ้างถึง voc_request_types (ร้องเรียน, แจ้งเหตุ …) — dev.db เก่าไม่มีตารางนี้จึงตกไปที่ voc_types
+    request_type_name = {row["id"]: row["name"] for row in tables.get("voc_request_types", [])}
+    # topic → voc_topics, sub_issue → voc_sub_issues (issue → voc_issues); voc_types เป็นค่าสำรองของ dev.db เก่า
+    topic_name = {**type_name, **{row["id"]: row["name"] for row in tables.get("voc_topics", [])}}
+    sub_issue_name = {**type_name, **{row["id"]: row["name"] for row in tables.get("voc_sub_issues", [])}}
     # voc_detail.request_pea อ้างถึงแถวใน pea_office ผ่าน region_group
     office_by_group = {str(row["region_group"]).strip().upper(): row for row in tables.get("pea_office", []) if row.get("region_group")}
+    # pea_office มีเฉพาะสาขา (กฟจ./กฟอ.) — รหัสสำนักงานใหญ่/การไฟฟ้าเขต (Z00000, A00000 …) ใช้ชื่อจาก voc_mas_department
+    # ถ้ารหัสนั้นมีหลายหน่วยงานที่ชื่อต่างกัน (เช่น Z00000) ใช้ชื่อภาคแทน เพื่อไม่เลือกหน่วยงานใดหน่วยงานหนึ่งแบบสุ่ม
+    dept_names: Dict[str, set] = {}
+    for row in tables.get("voc_mas_department", []):
+        code, name = str(row.get("pea_code") or "").strip().upper(), str(row.get("dept_short") or "").strip()
+        if code and name and not _truthy(row.get("is_deleted")):
+            dept_names.setdefault(code, set()).add(name)
     areas = {key: value for key, value in mapping["areas"].items() if not key.startswith("_")}
+    # ชื่อภาคที่มีเขตเดียว (สำนักงานใหญ่) ใช้ได้เลย ภาคที่มีหลายเขตต้องระบุเขตด้วย
+    areas_per_region = Counter(value["region"] for value in areas.values())
+    area_label = lambda area: area["region"] if areas_per_region[area["region"]] == 1 else f"{area['region']} ({area['area']})"
     voice_map = mapping["voice_type"]["map"]
     status_map, excluded = mapping["status"]["map"], set(mapping["status"]["exclude"])
 
@@ -123,17 +138,24 @@ def build_records(tables: Dict[str, List[Dict[str, Any]]], mapping: Dict[str, An
                 adjusted["completed_date ก่อน created_at (ใช้ created_at)"] += 1
 
         # พื้นที่มาจาก pea_office.region_group: request_pea → แถว pea_office → region_group → เขตใน mapping.areas
+        # ไม่พบใน pea_office → ใช้อักษรตัวแรกของ request_pea เอง (รูปแบบรหัสเดียวกัน เช่น Z00000 → สนญ., A00000 → น.1)
         code = (detail.get("request_pea") or "").strip().upper()
         office_row = office_by_group.get(code)
-        region_group = str(office_row["region_group"]).strip().upper() if office_row else ""
+        region_group = str(office_row["region_group"]).strip().upper() if office_row else code
         area = areas.get(region_group[:1]) if region_group else None
         if area is None:
-            reason = f"{region_group} (ไม่มีใน mapping.areas)" if region_group else (f"{code} (ไม่พบใน pea_office)" if code else "(ไม่มี request_pea)")
+            reason = f"{region_group} (ไม่มีใน mapping.areas)" if region_group else "(ไม่มี request_pea)"
             unmapped["region"][reason] += 1
+        elif office_row is None:
+            adjusted["พื้นที่จากอักษรแรกของ request_pea (ไม่พบใน pea_office)"] += 1
+        # dashboard ถือว่าชื่อการไฟฟ้าหนึ่งชื่ออยู่ได้พื้นที่เดียว ชื่อสำรองจึงต้องผูกกับพื้นที่เสมอ
         office = office_row["name"] if office_row and office_row.get("name") else None
+        if office is None and code in dept_names:
+            names = dept_names[code]
+            office = next(iter(names)) if len(names) == 1 else (area_label(area) if area else None)
         if office is None:
             unmapped["pea_office"][code or "(ว่าง)"] += 1
-            office = unknown
+            office = f"{unknown} ({area['area']})" if area else unknown
 
         def lookup(names: Dict[Any, str], key: Any, field: str) -> str:
             name = names.get(key)
@@ -141,7 +163,7 @@ def build_records(tables: Dict[str, List[Dict[str, Any]]], mapping: Dict[str, An
                 unmapped[field][key or "(ว่าง)"] += 1
             return name or unknown
 
-        request_type = type_name.get(master.get("request_type"))
+        request_type = request_type_name.get(master.get("request_type")) or type_name.get(master.get("request_type"))
         voice = voice_map.get(request_type) if request_type else None
         if voice is None:
             unmapped["voice_type_level1"][request_type or master.get("request_type") or "(ว่าง)"] += 1
@@ -158,12 +180,21 @@ def build_records(tables: Dict[str, List[Dict[str, Any]]], mapping: Dict[str, An
             "pea_office": office,
             "contact_channel": lookup(channel_name, detail.get("main_channel"), "contact_channel"),
             "voice_type_level1": voice or unknown,
-            "topic_level2": lookup(type_name, master.get("topic"), "topic_level2"),
+            "topic_level2": lookup(topic_name, master.get("topic"), "topic_level2"),
             "issue_level3": lookup(issue_name, master.get("issue"), "issue_level3"),
-            "subissue_level4": lookup(type_name, master.get("sub_issue"), "subissue_level4"),
+            "subissue_level4": lookup(sub_issue_name, master.get("sub_issue"), "subissue_level4"),
             "sla_status": sla_status(created, closed, today, mapping["sla"]),
             "region_name": area["region"] if area else unknown,
         })
+
+    # สาขาคนละเขตที่ชื่อซ้ำกัน (เช่น กฟอ.เฉลิมพระเกียรติ ใน ต.2 และ ฉ.3) ต่อท้ายด้วยเขต เพื่อให้หนึ่งชื่ออยู่ได้พื้นที่เดียว
+    office_areas: Dict[str, set] = {}
+    for record in records:
+        office_areas.setdefault(record["pea_office"], set()).add(record["region"])
+    for record in records:
+        if len(office_areas[record["pea_office"]]) > 1:
+            record["pea_office"] = f"{record['pea_office']} ({record['region']})"
+            adjusted["ชื่อการไฟฟ้าซ้ำหลายเขต (ต่อท้ายด้วยเขต)"] += 1
 
     report = {
         "source_rows": len(tables.get("voc_master", [])),

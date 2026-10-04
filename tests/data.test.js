@@ -59,9 +59,9 @@ test('date, enum, year/month and closure invariants', () => {
   for (const patch of [
     { status: 'unknown' }, { month: '13' }, { year: '2567' },
     { voice_type_level1: 'unknown' }, { sla_status: 'unknown' },
-    { status: 'ปิดคำร้อง', closed_at: '' }, { closed_at: '2024-01-02' },
-    { status: 'ปิดคำร้อง', closed_at: '2023-12-31' },
-    { status: 'ปิดคำร้อง', closed_at: '2024-01-02', sla_status: 'ใกล้ครบกำหนด' },
+    { status: 'ปิด', closed_at: '' }, { closed_at: '2024-01-02' },
+    { status: 'ปิด', closed_at: '2023-12-31' },
+    { status: 'ปิด', closed_at: '2024-01-02', sla_status: 'ใกล้ครบกำหนด' },
   ]) assert.throws(() => normalizeRecord({ ...sample, ...patch }));
   assert.equal(normalizeRecord({ ...sample, created_at: '2024-02-29', month: '02' }).month, 2);
 });
@@ -75,6 +75,8 @@ test('shared aggregations reconcile and empty denominators never yield NaN', () 
   assert.equal(percentage(0, 0), 0);
   assert.deepEqual(countBy([], 'status'), []);
   assert.equal(buildDataModel([]).latestRecordDate, null);
+  assert.equal(buildDataModel([]).earliestRecordDate, null);
+  assert.equal(buildDataModel([{ created_at: '2026-08-02', closed_at: null }, { created_at: '2026-07-15', closed_at: '2026-09-01' }]).earliestRecordDate, '2026-07-15');
 });
 
 test('hierarchy options stay within their parent path', () => {
