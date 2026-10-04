@@ -1,0 +1,43 @@
+{
+  "_comment": "กฎแปลงข้อมูลจากฐานข้อมูล VOC ไปเป็นคอลัมน์ของ dashboard แก้ไฟล์นี้ได้โดยไม่ต้องแก้โค้ด ค่าที่จับคู่ไม่ได้จะเป็นค่า unknown และถูกนับในรายงาน",
+  "timezone": "Asia/Bangkok",
+  "unknown": "ไม่ระบุ",
+
+  "status": {
+    "_comment": "voc_master.status → voc_status.group_status_th → สถานะของ dashboard; กลุ่มใน exclude จะไม่ถูกส่งไป dashboard (นับในรายงาน)",
+    "map": {
+      "ปิด": "ปิดคำร้อง",
+      "กำลังดำเนินการ": "อยู่ระหว่างดำเนินการ",
+      "รอดำเนินการ": "รับเรื่อง"
+    },
+    "exclude": ["ยกเลิกคำร้อง"]
+  },
+
+  "sla": {
+    "_comment": "นับวันจาก created_at ถึง completed_date (ปิดแล้ว) หรือถึงวันที่ดึงข้อมูล (ยังไม่ปิด)",
+    "overdue_after_days": 30,
+    "due_soon_from_days": 15
+  },
+
+  "areas": {
+    "_comment": "อักษรตัวแรกของ pea_office.region_group → area แสดงเป็นพื้นที่ (region) บน dashboard; region เก็บเป็นชื่อภาคในคอลัมน์เสริม region_name",
+    "A": { "area": "น.1", "region": "ภาคเหนือ" },
+    "B": { "area": "น.2", "region": "ภาคเหนือ" },
+    "C": { "area": "น.3", "region": "ภาคเหนือ" },
+    "D": { "area": "ฉ.1", "region": "ภาคตะวันออกเฉียงเหนือ" },
+    "E": { "area": "ฉ.2", "region": "ภาคตะวันออกเฉียงเหนือ" },
+    "F": { "area": "ฉ.3", "region": "ภาคตะวันออกเฉียงเหนือ" },
+    "G": { "area": "ก.1", "region": "ภาคกลาง" },
+    "H": { "area": "ก.2", "region": "ภาคกลาง" },
+    "I": { "area": "ก.3", "region": "ภาคกลาง" },
+    "J": { "area": "ต.1", "region": "ภาคใต้" },
+    "K": { "area": "ต.2", "region": "ภาคใต้" },
+    "L": { "area": "ต.3", "region": "ภาคใต้" },
+    "Z": { "area": "สนญ.", "region": "สำนักงานใหญ่" }
+  },
+
+  "voice_type": {
+    "_comment": "ยังไม่ทราบที่มาของ 5 ประเภทเสียง: ใส่คู่ <ชื่อใน voc_types ของ voc_master.request_type> : <ประเภทเสียงของ dashboard> เมื่อได้ข้อมูลที่ถูกต้อง",
+    "map": {}
+  }
+}

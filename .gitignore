@@ -1,0 +1,18 @@
+node_modules/
+dist/
+
+# ฐานข้อมูลและ snapshot ที่อาจมีข้อมูลจริงขององค์กร — ห้าม commit
+*.db
+*.sqlite
+buffer/cache/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+
+# ความลับ
+.env
+.env.*
+
+.DS_Store
