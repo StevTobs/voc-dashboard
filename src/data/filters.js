@@ -44,6 +44,15 @@ const sorters = {
 // Years are stored as ค.ศ. (from created_at) but shown as พ.ศ.
 const labels = { month: value => THAI_MONTHS[value - 1] ?? String(value), year: value => String(value + 543) };
 
+/**
+ * Next selection after ticking/unticking one checkbox. Only picked options are ticked;
+ * unticking the last one leaves nothing picked, which means "ทั้งหมด".
+ */
+export function toggleSelection(allValues, selected, value) {
+  const next = selected.includes(value) ? selected.filter(item => item !== value) : [...selected, value];
+  return allValues.filter(item => next.includes(item));
+}
+
 /** Options come only from values present in the dataset. */
 export function deriveFilterOptions(records) {
   const options = Object.fromEntries(FILTER_FIELDS.map(({ key, field }) => {

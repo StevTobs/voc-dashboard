@@ -1,4 +1,5 @@
 import React, { useEffect, useId, useRef, useState } from 'react';
+import { toggleSelection } from '../data/filters.js';
 
 const chevron = <svg viewBox="0 0 12 12" aria-hidden="true"><path d="m2.5 4.5 3.5 3.5 3.5-3.5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" /></svg>;
 
@@ -24,11 +25,7 @@ export default function MultiSelect({ label, options, value, onChange, disabled 
   const summary = all ? 'ทั้งหมด' : value.length === 1 ? options.find(option => option.value === value[0])?.label ?? String(value[0]) : `เลือก ${value.length} รายการ`;
   const term = query.trim().toLowerCase();
   const shown = term ? options.filter(option => String(option.label).toLowerCase().includes(term)) : options;
-  function toggle(optionValue) {
-    const next = value.includes(optionValue) ? value.filter(item => item !== optionValue) : [...value, optionValue];
-    // Ticking every option is the same as "ทั้งหมด".
-    onChange(next.length === options.length ? [] : options.map(option => option.value).filter(item => next.includes(item)));
-  }
+  const toggle = optionValue => onChange(toggleSelection(options.map(option => option.value), value, optionValue));
   const fieldProps = { 'aria-invalid': error ? true : undefined, 'aria-describedby': error ? `${id}-error` : undefined, 'aria-expanded': open, 'aria-controls': `${id}-list`, disabled: disabled || !options.length };
   return <div className="filter-field multi-select" ref={root}>
     <span id={`${id}-label`}>{label}</span>

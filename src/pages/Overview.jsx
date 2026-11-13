@@ -9,7 +9,7 @@ import { aggregateOverview, selectOverviewRecords } from '../data/overview.js';
 export default function Overview({ selection, onSelectionChange }) {
   const { records, status } = useDashboardData();
   // Every KPI and chart below derives from this one filtered dataset.
-  const { filteredRecords } = useFilters();
+  const { filteredRecords, extraRecords } = useFilters();
   const data = useMemo(() => aggregateOverview(selectOverviewRecords(filteredRecords, selection)), [filteredRecords, selection]);
   // Each donut ignores its own selection so it keeps the full breakdown and can highlight the chosen slice.
   const regionData = useMemo(() => aggregateOverview(selectOverviewRecords(filteredRecords, { ...selection, zone: null, region: null })), [filteredRecords, selection]);
@@ -45,6 +45,7 @@ export default function Overview({ selection, onSelectionChange }) {
         <DonutChart title="ประเภทเสียง" rows={voiceData.voices} status={status} voice selected={selection.voice} onSelect={value => toggle('voice', value)} />
       </div>
       <OfficeChart rows={bars} status={status} onSelect={value => toggle('region', value)}
+        extraRecords={selection.region ? [] : extraRecords}
         title={selection.region ? `เสียงของลูกค้าจำแนกตามการไฟฟ้า · ${selection.region}` : `เสียงของลูกค้าจำแนกตามพื้นที่${selection.zone ? ` · ${selection.zone}` : ''}`} />
     </div>
   </>;

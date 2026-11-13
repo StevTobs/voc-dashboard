@@ -1,6 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { loadComplaints } from './loader.js';
 import { buildDataModel } from './aggregations.js';
+import { splitTestRecords } from './schema.js';
 
 const DataContext = createContext(null);
 const EMPTY_RECORDS = Object.freeze([]);
@@ -9,15 +10,15 @@ export const DATA_URL = import.meta.env.VITE_DATA_URL || `${import.meta.env.BASE
 export const USES_BUFFER = Boolean(import.meta.env.VITE_DATA_URL);
 
 export function DataProvider({ children }) {
-  const [state, setState] = useState({ status: 'loading', records: EMPTY_RECORDS, issues: [], error: null });
+  const [state, setState] = useState({ status: 'loading', records: EMPTY_RECORDS, testRecords: EMPTY_RECORDS, issues: [], error: null });
   const [version, setVersion] = useState(0);
   // Re-fetch in place (keeping the current data on screen) when the buffer publishes a new snapshot.
   const reload = useCallback(() => setVersion(current => current + 1), []);
   useEffect(() => {
     const controller = new AbortController();
     loadComplaints({ url: DATA_URL, signal: controller.signal })
-      .then(result => { if (!controller.signal.aborted) setState({ ...result, status: 'ready', error: null }); })
-      .catch(error => { if (!controller.signal.aborted) setState({ status: 'error', records: EMPTY_RECORDS, issues: [], error: error.message }); });
+      .then(result => { if (!controller.signal.aborted) setState({ ...result, ...splitTestRecords(result.records), status: 'ready', error: null }); })
+      .catch(error => { if (!controller.signal.aborted) setState({ status: 'error', records: EMPTY_RECORDS, testRecords: EMPTY_RECORDS, issues: [], error: error.message }); });
     return () => controller.abort();
   }, [version]);
   const model = useMemo(() => buildDataModel(state.records), [state.records]);

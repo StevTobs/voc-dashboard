@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
 import HorizontalChart from '../components/HorizontalChart.jsx';
+import ExtraDataTable from '../components/ExtraDataTable.jsx';
 import { useDashboardData } from '../data/DataProvider.jsx';
 import { useFilters } from '../data/FilterProvider.jsx';
 import { countBy, countByPair } from '../data/aggregations.js';
@@ -9,14 +10,14 @@ const ranked = rows => [...rows].sort((a, b) => b.count - a.count || a.value.loc
 
 export default function ComplaintDetail() {
   const { status } = useDashboardData();
-  const { detailRecords: records } = useFilters();
+  const { detailRecords: records, extraRecords } = useFilters();
   const charts = useMemo(() => [
     { title: 'การไฟฟ้า 10 อันดับแรกที่มีเสียงมากที่สุด', rows: ranked(withoutUnknown(countBy(records, 'pea_office'))).slice(0, 10) },
-    { title: 'ช่องทางการติดต่อทั้งหมด', rows: ranked(countBy(records, 'contact_channel')) },
+    { title: 'ช่องทางการติดต่อทั้งหมด', rows: ranked(countBy(records, 'contact_channel')), color: 'bar-gold' },
     { title: 'ประเภทเสียง (Level 1)', rows: countBy(records, 'voice_type_level1'), colored: true },
     { title: 'แสดงหัวข้อ (Level 2)', rows: ranked(countByPair(records, 'topic_level2', 'voice_type_level1')), stacked: true },
     { title: 'แสดงประเด็นเสียง (Level 3)', rows: ranked(countByPair(records, 'issue_level3', 'voice_type_level1')), stacked: true },
     { title: 'แสดงประเด็นย่อย (Level 4)', rows: ranked(countByPair(records, 'subissue_level4', 'voice_type_level1')), stacked: true },
   ], [records]);
-  return <div className="detail-grid">{charts.map(chart => <HorizontalChart key={chart.title} {...chart} status={status} />)}</div>;
+  return <div className="detail-grid">{status === 'ready' && extraRecords.length > 0 && <section className="card extra-data-card" aria-label="ข้อมูลส่วนเกิน"><ExtraDataTable records={extraRecords} /></section>}{charts.map(chart => <HorizontalChart key={chart.title} {...chart} status={status} />)}</div>;
 }

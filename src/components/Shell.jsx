@@ -2,9 +2,9 @@ import React from 'react';
 
 export const navigation = [
   { path: '/overview', label: 'ภาพรวมด้านบริการ' },
-  { path: '/complaint-detail', label: 'ประเภทเสียงร้องเรียน', detail: true },
-  // Placeholder page: menu and title only until its content is defined.
-  { path: '/power-quality', label: 'เสียงของลูกค้าด้านคุณภาพไฟฟ้า', blank: true },
+  { path: '/complaint-detail', label: 'เสียงของลูกค้า', detail: true },
+  // Hidden for now; put back to show the (still empty) page again:
+  // { path: '/power-quality', label: 'เสียงของลูกค้าด้านคุณภาพไฟฟ้า', blank: true },
 ];
 
 export default function Shell({ path, children }) {
@@ -19,6 +19,6 @@ export default function Shell({ path, children }) {
       <div className="user-area"><span className="avatar" aria-hidden="true">P</span><span>ผู้ใช้งานทั่วไป</span></div>
     </div></header>
     <main id="main" className={navigation.find(item => item.path === path)?.detail ? 'complaint-detail-page' : undefined} tabIndex="-1">{children}</main>
-    <footer>PEA VOC Dashboard <span className="credit">Created by แผนกวิเคราะห์สารสนเทศและพฤติกรรมลูกค้า กสล. โทร 02-009-6735</span></footer>
+    <footer>PEA VOC Dashboard <span className="credit">Created by กองบริหารระบบรับฟังเสียงของลูกค้า โทร 02-009-6735</span></footer>
   </>;
 }

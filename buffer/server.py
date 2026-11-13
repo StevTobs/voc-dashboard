@@ -8,6 +8,7 @@ POST /api/refresh         สั่งดึงข้อมูลใหม่ (�
 from __future__ import annotations
 
 import json
+import socket
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 from .core import Buffer
@@ -62,5 +63,19 @@ def make_handler(buffer: Buffer):
     return Handler
 
 
+class BufferServer(ThreadingHTTPServer):
+    """จอง port แบบ exclusive: buffer ตัวที่สองเปิด port เดียวกันไม่ได้
+
+    Windows ยอมให้หลาย process เปิด port เดียวกันถ้าตั้ง SO_REUSEADDR (ค่าเริ่มต้นของ HTTPServer)
+    แล้ว request จะไปตกที่ตัวเก่าที่ connection อาจหลุดไปแล้ว จึงใช้ SO_EXCLUSIVEADDRUSE แทน
+    """
+    allow_reuse_address = not hasattr(socket, "SO_EXCLUSIVEADDRUSE")
+
+    def server_bind(self) -> None:
+        if hasattr(socket, "SO_EXCLUSIVEADDRUSE"):
+            self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+        super().server_bind()
+
+
 def serve(buffer: Buffer, port: int) -> ThreadingHTTPServer:
-    return ThreadingHTTPServer(("127.0.0.1", port), make_handler(buffer))
+    return BufferServer(("127.0.0.1", port), make_handler(buffer))

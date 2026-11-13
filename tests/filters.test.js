@@ -2,8 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { parseComplaints } from '../src/data/csv.js';
+import { TEST_REGION, splitTestRecords } from '../src/data/schema.js';
 import { aggregateOverview } from '../src/data/overview.js';
-import { DEFAULT_FILTERS, FILTER_FIELDS, OFFICE_FILTER, applyFilters, deriveFilterOptions, mismatchedOffices, normalizeFilters, officesForRegions } from '../src/data/filters.js';
+import { DEFAULT_FILTERS, FILTER_FIELDS, OFFICE_FILTER, applyFilters, deriveFilterOptions, mismatchedOffices, normalizeFilters, officesForRegions, toggleSelection } from '../src/data/filters.js';
 
 const records = parseComplaints(await readFile(new URL('../public/data/complaints.csv', import.meta.url), 'utf8')).records;
 const options = deriveFilterOptions(records);
@@ -94,4 +95,20 @@ test('year options are shown in พ.ศ., newest first', async () => {
   const { deriveFilterOptions } = await import('../src/data/filters.js');
   const rows = [2024, 2026, 2025].map(year => ({ year, month: 1, status: 'ปิด', voice_type_level1: 'ร้องเรียน', region: 'ก.1', pea_office: 'x' }));
   assert.deepEqual(deriveFilterOptions(rows).year, [{ value: 2026, label: '2569' }, { value: 2025, label: '2568' }, { value: 2024, label: '2567' }]);
+});
+
+test('toggleSelection ticks and unticks exactly the clicked option', () => {
+  assert.deepEqual(toggleSelection([2026], [], 2026), [2026]);         // only one year: can be ticked
+  assert.deepEqual(toggleSelection([2026], [2026], 2026), []);         // ...and unticked → ทั้งหมด
+  assert.deepEqual(toggleSelection([2026, 2025], [2026], 2025), [2026, 2025]); // ticking every year stays ticked
+  assert.deepEqual(toggleSelection([1, 2, 3], [3], 1), [1, 3]);        // keeps option order
+});
+
+test('system-test cases (ไม่ระบุ (สตภ. ทดสอบระบบ)) are split off and never reach filters or totals', () => {
+  const extra = { ...records[0], complaint_id: 'TEST-1', region: TEST_REGION, pea_office: TEST_REGION };
+  const split = splitTestRecords([...records, extra]);
+  assert.equal(split.records.length, records.length);
+  assert.deepEqual(split.testRecords, [extra]);
+  assert.ok(!deriveFilterOptions(split.records).region.some(option => option.value === TEST_REGION));
+  assert.equal(splitTestRecords(records).records, records);
 });

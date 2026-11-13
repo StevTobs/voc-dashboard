@@ -5,6 +5,13 @@ export const CLOSED_STATUS = 'ปิด';
 export const VOICE_TYPES = ['ร้องเรียน', 'ข้อเสนอแนะ/ข้อคิดเห็น', 'แจ้งเหตุ', 'แจ้งเบาะแส', 'ชื่นชม'];
 /** Data from the database buffer uses this when a source value has no mapping yet (see buffer/mapping.json). */
 export const UNKNOWN_VALUE = 'ไม่ระบุ';
+/** Area of system-test cases (no request_pea, see buffer/mapping.json no_request_pea). They are extra data: never counted in any statistic. */
+export const TEST_REGION = 'ไม่ระบุ (สตภ. ทดสอบระบบ)';
+/** Splits off system-test cases so no chart, total or filter ever sees them; the dashboard only reports how many there are. */
+export function splitTestRecords(records) {
+  const testRecords = records.filter(record => record.region === TEST_REGION);
+  return { records: testRecords.length ? records.filter(record => record.region !== TEST_REGION) : records, testRecords };
+}
 export const SLA_STATUSES = ['เกินกำหนด', 'ใกล้ครบกำหนด', 'ภายในกำหนด'];
 export const HIERARCHY_FIELDS = ['voice_type_level1', 'topic_level2', 'issue_level3', 'subissue_level4'];
 export const REQUIRED_FIELDS = ['complaint_id', 'created_at', 'closed_at', 'status', 'year', 'month', 'region', 'pea_office', 'contact_channel', ...HIERARCHY_FIELDS, 'sla_status'];

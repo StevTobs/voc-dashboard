@@ -66,7 +66,10 @@ npm run dev             # dashboard แบบเดิม อ่าน Mock CSV
    ```
    ถ้าไม่ใส่รหัสผ่าน buffer จะถามใน Terminal เหมือนเดิม
 2. `npm run build:publish` — build ให้ใช้ base `/test/voc-dashboard/` และอ่านข้อมูลจาก `/test/voc-dashboard/api/complaints.csv`
-3. ดับเบิลคลิก `publish-buffer.bat` — เริ่ม buffer (`--source external`) และเริ่มใหม่อัตโนมัติถ้าการเชื่อมต่อหลุด
+3. `publish-buffer.bat` — เริ่ม buffer (`--source external`) ถูกเรียกอัตโนมัติตอน logon โดย Task Scheduler (`PEA VOC buffer`) ไม่ต้องดับเบิลคลิกเอง
+   - ถ้าการเชื่อมต่อฐานข้อมูลหรือ SSH tunnel หลุด buffer จะออก (exit 1) แล้ว .bat เริ่มใหม่ภายใน 30 วินาที (ต้องมีรหัสผ่านใน `.env`)
+   - เปิดซ้อนไม่ได้: port 8765 ถูกจองแบบ exclusive ตัวที่สองจะออกทันที (exit 2) ก่อนต่อฐานข้อมูล และ .bat ปิดหน้าต่างเอง
+   - เริ่มใหม่ด้วยมือ: ปิดหน้าต่าง buffer แล้ว `schtasks /Run /TN "PEA VOC buffer"`
 4. Caddy (`pea-voc-database-query/Caddyfile`) ส่ง `/test/voc-dashboard/api/*` ไป buffer และเสิร์ฟ `dist/` สำหรับ path อื่น
 
 ตัวเลือกอื่น: `--refresh` (วินาที, ค่าเริ่มต้น 300), `--health` (60), `--port` (8765), `--db`, `--mapping`

@@ -14,9 +14,11 @@ from typing import Any, Callable, Dict, List, Optional
 # เลือกเฉพาะคอลัมน์ที่ transform ใช้ (ไม่ดึงข้อมูลส่วนบุคคล)
 COLUMNS: Dict[str, List[str]] = {
     "voc_master": ["id", "voc_no", "status", "created_at", "updated_at", "is_deleted", "request_type", "topic", "issue", "sub_issue"],
-    "voc_detail": ["voc_master_id", "request_pea", "main_channel", "completed_date"],
+    "voc_detail": ["voc_master_id", "request_pea", "main_channel", "sub_channel", "completed_date"],
     "voc_status": ["id", "status_en", "group_status_th"],
     "voc_channels": ["id", "name"],
+    # ช่องทางย่อย (voc_detail.sub_channel) เช่น 1129 PEA Contact Center, PEA Website
+    "voc_channel_mechanism": ["id", "name"],
     "voc_issues": ["id", "name"],
     "voc_types": ["id", "name"],
     "pea_office": ["name", "region_group"],
@@ -26,7 +28,7 @@ COLUMNS: Dict[str, List[str]] = {
     "voc_sub_issues": ["id", "name"],
 }
 # ตารางเสริม: ถ้าไม่มีใน dev.db ให้ข้ามได้ (ฐานข้อมูลจริงมีครบ)
-OPTIONAL_TABLES = {"voc_mas_department", "voc_request_types", "voc_topics", "voc_sub_issues"}
+OPTIONAL_TABLES = {"voc_mas_department", "voc_request_types", "voc_topics", "voc_sub_issues", "voc_channel_mechanism"}
 # ตารางที่มี updated_at ใช้ดูความสดของข้อมูล
 FRESHNESS_TABLES = ["voc_master", "voc_detail", "voc_tracking"]
 
@@ -57,8 +59,15 @@ class SqliteSource:
     def fetch_tables(self) -> Dict[str, List[Dict[str, Any]]]:
         with self._connect() as conn:
             existing = {row[0] for row in conn.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
-            return {table: [dict(row) for row in conn.execute(f'SELECT {", ".join(columns)} FROM "{table}"')]
-                    for table, columns in COLUMNS.items() if table in existing or table not in OPTIONAL_TABLES}
+            result = {}
+            for table, columns in COLUMNS.items():
+                if table not in existing and table in OPTIONAL_TABLES:
+                    continue
+                # dev.db เก่าอาจไม่มีบางคอลัมน์ (เช่น voc_detail.sub_channel) — เลือกเฉพาะคอลัมน์ที่มี
+                present = {row[1] for row in conn.execute(f'PRAGMA table_info("{table}")')}
+                chosen = [column for column in columns if column in present] or columns
+                result[table] = [dict(row) for row in conn.execute(f'SELECT {", ".join(chosen)} FROM "{table}"')]
+            return result
 
     def health(self) -> Dict[str, Any]:
         started = time.monotonic()
@@ -99,6 +108,11 @@ class PostgresSource:
             raise SourceError("connection ปิดแล้ว — เริ่ม buffer ใหม่เพื่อกรอกรหัสผ่าน")
         if self.tunnel is not None and not self.tunnel.is_active:
             raise SourceError(f"SSH tunnel หลุด{': ' + self.tunnel.last_error if self.tunnel.last_error else ''}")
+
+    def is_alive(self) -> bool:
+        """connection และ SSH tunnel ยังใช้ได้ (psycopg ตั้ง closed เมื่อคำสั่งล้มเพราะการเชื่อมต่อหลุด)"""
+        return (self.conn is not None and not self.conn.closed
+                and (self.tunnel is None or self.tunnel.is_active))
 
     def _query(self, statement: Any) -> List[Dict[str, Any]]:
         from psycopg.rows import dict_row

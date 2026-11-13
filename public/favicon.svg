@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- PEA VOC Dashboard: speech bubble (voice of customer) with bars (dashboard) on PEA purple -->
+  <rect width="64" height="64" rx="14" fill="#750568"/>
+  <path d="M12 14h40a5 5 0 0 1 5 5v22a5 5 0 0 1-5 5H29l-10 8v-8h-7a5 5 0 0 1-5-5V19a5 5 0 0 1 5-5z" fill="#fff"/>
+  <rect x="18" y="31" width="7" height="9" rx="1.5" fill="#ffc274"/>
+  <rect x="28.5" y="24" width="7" height="16" rx="1.5" fill="#ff9c24"/>
+  <rect x="39" y="19" width="7" height="21" rx="1.5" fill="#750568"/>
+</svg>

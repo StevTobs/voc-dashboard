@@ -14,7 +14,7 @@ DASHBOARD_FIELDS = [
     "complaint_id", "created_at", "closed_at", "status", "year", "month", "region", "pea_office",
     "contact_channel", "voice_type_level1", "topic_level2", "issue_level3", "subissue_level4", "sla_status",
 ]
-OUTPUT_FIELDS = DASHBOARD_FIELDS + ["region_name"]
+OUTPUT_FIELDS = DASHBOARD_FIELDS + ["region_name", "channel_group"]
 CLOSED = "ปิด"
 
 
@@ -76,10 +76,14 @@ def build_records(tables: Dict[str, List[Dict[str, Any]]], mapping: Dict[str, An
     """คืน (records, report) — report บอกจำนวนแถวที่ข้ามและค่าที่จับคู่ไม่ได้ เพื่อให้ตรวจ mapping ได้"""
     tz = ZoneInfo(mapping.get("timezone", "Asia/Bangkok"))
     unknown = mapping.get("unknown", "ไม่ระบุ")
+    # เรื่องที่ไม่มี request_pea คือเรื่องทดสอบระบบ ใช้ชื่อพื้นที่แยก (dashboard ไม่นับในยอดรวม)
+    no_area = mapping.get("no_request_pea")
     today = (as_of.astimezone(tz) if as_of.tzinfo else as_of).date()
     status_by_code = _index(tables.get("voc_status", []), "status_en")
     detail_by_master = _index(tables.get("voc_detail", []), "voc_master_id")
     channel_name = {row["id"]: row["name"] for row in tables.get("voc_channels", [])}
+    # ช่องทางย่อย (voc_detail.sub_channel → voc_channel_mechanism) ละเอียดกว่ากลุ่ม Physical/Digital/อื่นๆ ของ main_channel
+    mechanism_name = {row["id"]: str(row["name"]).strip() for row in tables.get("voc_channel_mechanism", []) if row.get("name")}
     issue_name = {row["id"]: row["name"] for row in tables.get("voc_issues", [])}
     type_name = {row["id"]: row["name"] for row in tables.get("voc_types", [])}
     # voc_master.request_type อ้างถึง voc_request_types (ร้องเรียน, แจ้งเหตุ …) — dev.db เก่าไม่มีตารางนี้จึงตกไปที่ voc_types
@@ -143,13 +147,17 @@ def build_records(tables: Dict[str, List[Dict[str, Any]]], mapping: Dict[str, An
         office_row = office_by_group.get(code)
         region_group = str(office_row["region_group"]).strip().upper() if office_row else code
         area = areas.get(region_group[:1]) if region_group else None
-        if area is None:
+        if not code and no_area:
+            area = {"area": no_area, "region": no_area}
+            office_row, office = None, no_area
+        elif area is None:
             reason = f"{region_group} (ไม่มีใน mapping.areas)" if region_group else "(ไม่มี request_pea)"
             unmapped["region"][reason] += 1
         elif office_row is None:
             adjusted["พื้นที่จากอักษรแรกของ request_pea (ไม่พบใน pea_office)"] += 1
         # dashboard ถือว่าชื่อการไฟฟ้าหนึ่งชื่ออยู่ได้พื้นที่เดียว ชื่อสำรองจึงต้องผูกกับพื้นที่เสมอ
-        office = office_row["name"] if office_row and office_row.get("name") else None
+        if area is None or area["area"] != no_area:
+            office = office_row["name"] if office_row and office_row.get("name") else None
         if office is None and code in dept_names:
             names = dept_names[code]
             office = next(iter(names)) if len(names) == 1 else (area_label(area) if area else None)
@@ -178,7 +186,9 @@ def build_records(tables: Dict[str, List[Dict[str, Any]]], mapping: Dict[str, An
             # dashboard แสดงพื้นที่เป็นเขต (น.1 … สนญ.) ส่วนชื่อภาคเก็บไว้ใน region_name
             "region": area["area"] if area else unknown,
             "pea_office": office,
-            "contact_channel": lookup(channel_name, detail.get("main_channel"), "contact_channel"),
+            # ช่องทางย่อยถ้ามี ไม่งั้นใช้กลุ่มช่องทาง (main_channel)
+            "contact_channel": mechanism_name.get(detail.get("sub_channel")) or lookup(channel_name, detail.get("main_channel"), "contact_channel"),
+            "channel_group": channel_name.get(detail.get("main_channel")) or unknown,
             "voice_type_level1": voice or unknown,
             "topic_level2": lookup(topic_name, master.get("topic"), "topic_level2"),
             "issue_level3": lookup(issue_name, master.get("issue"), "issue_level3"),
@@ -196,6 +206,16 @@ def build_records(tables: Dict[str, List[Dict[str, Any]]], mapping: Dict[str, An
         else:
             kept.append(record)
     records = kept
+
+    # ชื่อที่ซ้ำซ้อน (mapping.rename) รวมเป็นชื่อเดียว เช่น ประเด็นย่อยของ Volta
+    for field, names in mapping.get("rename", {}).items():
+        if field.startswith("_"):
+            continue
+        for record in records:
+            new_name = names.get(record.get(field))
+            if new_name is not None and new_name != record[field]:
+                adjusted[f"เปลี่ยนชื่อ {field} (mapping.rename)"] += 1
+                record[field] = new_name
 
     # สาขาคนละเขตที่ชื่อซ้ำกัน (เช่น กฟอ.เฉลิมพระเกียรติ ใน ต.2 และ ฉ.3) ต่อท้ายด้วยเขต เพื่อให้หนึ่งชื่ออยู่ได้พื้นที่เดียว
     office_areas: Dict[str, set] = {}

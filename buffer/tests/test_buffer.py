@@ -6,10 +6,12 @@ import urllib.error
 import urllib.request
 from datetime import date, datetime, timezone
 from pathlib import Path
+from types import SimpleNamespace
 
+from buffer.__main__ import watch_connection
 from buffer.core import Buffer, compare
 from buffer.server import serve
-from buffer.sources import SqliteSource
+from buffer.sources import PostgresSource, SqliteSource
 from buffer.transform import DASHBOARD_FIELDS, build_records, local_date, parse_datetime, sla_status
 
 PACKAGE = Path(__file__).resolve().parents[1]
@@ -42,17 +44,37 @@ class TransformTest(unittest.TestCase):
         self.assertEqual(records, [{
             "complaint_id": "C-1", "created_at": "2026-08-01", "closed_at": "2026-08-10", "status": "ปิด", "year": 2026, "month": 8,
             "region": "ต.3", "pea_office": "กฟจ.ยะลา", "contact_channel": "Call Center", "voice_type_level1": "ร้องเรียน",
-            "topic_level2": "บริการ", "issue_level3": "ค่าไฟฟ้าผิดปกติ", "subissue_level4": "บิลผิด", "sla_status": "ภายในกำหนด", "region_name": "ภาคใต้"}])
+            "topic_level2": "บริการ", "issue_level3": "ค่าไฟฟ้าผิดปกติ", "subissue_level4": "บิลผิด", "sla_status": "ภายในกำหนด", "region_name": "ภาคใต้",
+            "channel_group": "Call Center"}])
         self.assertEqual(report["unmapped"], {})
         self.assertTrue(set(DASHBOARD_FIELDS) <= set(records[0]))
 
     def test_unmapped_values_become_unknown_and_are_reported(self):
         records, report = build_records(tables(voc_detail=[]), MAPPING, AS_OF)
         row = records[0]
-        self.assertEqual((row["region"], row["pea_office"], row["voice_type_level1"], row["region_name"]), ("ไม่ระบุ",) * 4)
+        self.assertEqual(row["voice_type_level1"], "ไม่ระบุ")
+        # no request_pea → system-test case, labelled so the dashboard can leave it out of totals
+        self.assertEqual((row["region"], row["pea_office"], row["region_name"]), ("ไม่ระบุ (สตภ. ทดสอบระบบ)",) * 3)
+        self.assertNotIn("region", report["unmapped"])
+        self.assertNotIn("pea_office", report["unmapped"])
+        # without the label in mapping it stays a plain unknown
+        records, report = build_records(tables(voc_detail=[]), {**MAPPING, "no_request_pea": None}, AS_OF)
+        self.assertEqual((records[0]["region"], records[0]["pea_office"]), ("ไม่ระบุ", "ไม่ระบุ"))
+        self.assertEqual(report["unmapped"]["region"]["top_values"], [["(ไม่มี request_pea)", 1]])
         self.assertEqual(report["unmapped"]["voice_type_level1"]["rows"], 1)
         self.assertEqual(report["adjusted"], {"ปิดแล้วแต่ไม่มี completed_date (ใช้ updated_at)": 1})
         self.assertEqual(row["closed_at"], "2026-08-20")
+
+    def test_rename_merges_duplicate_names(self):
+        sub_issues = [{"id": "t-sub", "name": "แจ้งปัญหาเกี่ยวกับ Volta"}]
+        records, report = build_records(tables(voc_sub_issues=sub_issues), MAPPING, AS_OF)
+        self.assertEqual(records[0]["subissue_level4"], "เกี่ยวกับ PEA VOLTA")
+        self.assertEqual(report["adjusted"]["เปลี่ยนชื่อ subissue_level4 (mapping.rename)"], 1)
+
+    def test_contact_channel_uses_sub_channel_when_present(self):
+        detail = [{"voc_master_id": "m1", "request_pea": "L01201", "main_channel": "ch1", "sub_channel": "sc1", "completed_date": "2026-08-10T09:00:00"}]
+        records, _ = build_records(tables(voc_detail=detail, voc_channel_mechanism=[{"id": "sc1", "name": "1129 PEA Contact Center"}]), MAPPING, AS_OF)
+        self.assertEqual((records[0]["contact_channel"], records[0]["channel_group"]), ("1129 PEA Contact Center", "Call Center"))
 
     def test_region_comes_from_pea_office_region_group(self):
         # request_pea L01201 → pea_office row whose region_group is L01201 → letter L → ต.3
@@ -196,6 +218,35 @@ class BufferTest(unittest.TestCase):
         finally:
             server.shutdown()
             server.server_close()
+
+
+class ProcessGuardTest(unittest.TestCase):
+    def test_second_server_cannot_take_the_same_port(self):
+        first = serve(None, 0)
+        try:
+            with self.assertRaises(OSError):
+                serve(None, first.server_address[1])
+        finally:
+            first.server_close()
+
+    def test_postgres_source_is_dead_when_connection_or_tunnel_drops(self):
+        conn = SimpleNamespace(closed=False)
+        tunnel = SimpleNamespace(is_active=True)
+        source = PostgresSource(conn, "test", lambda: None, tunnel)
+        self.assertTrue(source.is_alive())
+        tunnel.is_active = False
+        self.assertFalse(source.is_alive())
+        tunnel.is_active, conn.closed = True, True
+        self.assertFalse(source.is_alive())
+
+    def test_watchdog_stops_server_when_connection_drops(self):
+        stopped = threading.Event()
+        server = SimpleNamespace(shutdown=stopped.set)
+        lost = threading.Event()
+        source = PostgresSource(SimpleNamespace(closed=True), "test", lambda: None)
+        watch_connection(source, 0.01, server, lost)
+        self.assertTrue(lost.is_set())
+        self.assertTrue(stopped.is_set())
 
 
 if __name__ == "__main__":

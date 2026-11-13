@@ -16,18 +16,22 @@ import getpass
 import json
 import os
 import sys
+import threading
 from dataclasses import replace
 from datetime import datetime, timezone
 from pathlib import Path
 
 from .core import Buffer, to_csv
-from .server import serve
+from .server import make_handler, serve
 from .sources import PostgresSource, SqliteSource
 from .transform import build_records
 
 PACKAGE_DIR = Path(__file__).resolve().parent
 REPO_DIR = PACKAGE_DIR.parent
 DEFAULT_DB_TOOLS = Path.home() / "Desktop" / "pea_voc_db"
+# exit code ที่ publish-buffer.bat ใช้ตัดสินใจ: 1 = เริ่มใหม่, 2 = มีตัวอื่นรันอยู่แล้ว ไม่ต้องเริ่มใหม่
+EXIT_CONNECTION_LOST = 1
+EXIT_PORT_IN_USE = 2
 
 
 def load_local_env() -> None:
@@ -93,6 +97,16 @@ def main() -> int:
     args = parser.parse_args()
 
     mapping = json.loads(args.mapping.read_text("utf-8"))
+    server = None
+    if not args.once:
+        # จอง port ก่อนต่อฐานข้อมูล ถ้ามี buffer รันอยู่แล้วจะออกทันทีโดยไม่เปิด SSH/login ซ้ำ
+        try:
+            server = serve(None, args.port)
+        except OSError as exc:
+            if exc.errno == errno.EADDRINUSE:
+                print(f"port {args.port} ถูกใช้อยู่ — มี buffer อีกตัวรันอยู่แล้ว (ดูด้วย: netstat -ano | findstr :{args.port}) หรือใช้ --port อื่น", file=sys.stderr)
+                return EXIT_PORT_IN_USE
+            raise
     # โหมด external ไม่แตะ dev.db เลย (ไม่ดึง ไม่ตรวจสถานะ)
     internal = SqliteSource(args.db) if args.source == "internal" else None
     external = connect_external() if args.source == "external" or args.check_external else None
@@ -108,14 +122,12 @@ def main() -> int:
 
     buffer = Buffer(source, mapping, args.cache_dir, internal=internal, external=external,
                     refresh_seconds=args.refresh, health_seconds=args.health)
-    try:
-        server = serve(buffer, args.port)
-    except OSError as exc:
-        buffer.stop()
-        if exc.errno == errno.EADDRINUSE:
-            sys.exit(f"port {args.port} ถูกใช้อยู่ — อาจมี buffer อีกตัวรันอยู่แล้ว (ดูด้วย: lsof -i :{args.port}) หรือใช้ --port อื่น")
-        raise
+    server.RequestHandlerClass = make_handler(buffer)
     buffer.start()
+    connection_lost = threading.Event()
+    if external is not None:
+        threading.Thread(target=watch_connection, args=(external, args.health, server, connection_lost),
+                         name="buffer-watchdog", daemon=True).start()
     print(f"buffer พร้อมที่ http://127.0.0.1:{args.port}/api/status  (แหล่งข้อมูล: {source.label}, refresh ทุก {args.refresh} วินาที)")
     try:
         server.serve_forever()
@@ -124,7 +136,19 @@ def main() -> int:
     finally:
         server.server_close()
         buffer.stop()
-    return 0
+    return EXIT_CONNECTION_LOST if connection_lost.is_set() else 0
+
+
+def watch_connection(external: PostgresSource, interval: int, server, lost: threading.Event) -> None:
+    """ถ้าการเชื่อมต่อฐานข้อมูลจริงหลุด ให้ปิด server แล้วออก เพื่อให้ publish-buffer.bat เริ่มใหม่และเชื่อมต่อใหม่
+
+    ไม่ออกเองจะค้าง snapshot เก่าไปเรื่อยๆ เพราะ connection ที่ปิดแล้วเปิดใหม่ไม่ได้ (ไม่เก็บรหัสผ่าน)
+    """
+    while not lost.wait(interval):
+        if not external.is_alive():
+            print(f"{datetime.now().astimezone():%Y-%m-%d %H:%M:%S} การเชื่อมต่อฐานข้อมูลหลุด — ปิด buffer เพื่อเชื่อมต่อใหม่", file=sys.stderr)
+            lost.set()
+            server.shutdown()
 
 
 if __name__ == "__main__":

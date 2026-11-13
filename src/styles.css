@@ -103,10 +103,15 @@ main.complaint-detail-page { height:auto; min-height:calc(100dvh - 80px); displa
 .horizontal-bar { display:flex; height:24px; min-width:1px; }
 .bar-segment { display:block; background:var(--accent); }
 .bar-purple { --accent:#74199b; }
-.bar-tooltip { display:none; position:absolute; z-index:5; right:18px; bottom:10px; max-width:85%; padding:12px; background:#29223f; color:white; border-radius:5px; font-size:13px; pointer-events:none; box-shadow:0 3px 12px #0003; }
-.bar-tooltip span { display:block; }
+.bar-gold { --accent:#d29b1f; }
+.bar-tooltip { position:absolute; z-index:5; min-width:150px; max-width:260px; padding:8px 10px; background:#29223f; color:white; border-radius:4px; font-size:11px; line-height:1.4; pointer-events:none; box-shadow:0 3px 12px #0003; }
+.tooltip-item { display:grid; grid-template-columns:9px minmax(0,1fr) auto; align-items:center; gap:8px; padding:3px 0; }
+.tooltip-item.active { font-weight:600; background:#ffffff1f; margin:0 -6px; padding:3px 6px; border-radius:3px; }
+.horizontal-bar:hover .bar-segment { opacity:.55; }
+.horizontal-bar:hover .bar-segment:hover,.horizontal-bar:not(:has(.bar-segment + .bar-segment)):hover .bar-segment { opacity:1; }
+.tooltip-swatch { width:9px; height:9px; border-radius:1px; background:var(--accent); }
+.tooltip-count { text-align:right; padding-left:12px; }
 .horizontal-chart { position:relative; }
-.horizontal-bar:hover .bar-tooltip,.horizontal-bar:focus .bar-tooltip { display:block; }
 .horizontal-axis { margin:4px calc(var(--count-width) + 20px) 0 calc(var(--label-width) + 10px); display:flex; justify-content:space-between; border-top:1px solid #ddd; padding-top:7px; font-size:12px; }
 .axis-unit { text-align:right; font-size:12px; color:#666; margin:7px 10px; }
 .horizontal-chart .legend { margin-top:auto; padding:12px 0 0; gap:7px 12px; }
@@ -257,13 +262,13 @@ main.complaint-detail-page { height:auto; min-height:calc(100dvh - 80px); displa
   .overview-charts .donut-stack { gap:6px; }
 }
 
-.reference-donut circle[role="button"] { cursor:pointer; }
+.reference-donut .donut-slice[role="button"] { cursor:pointer; }
 /* No CSS filter on slices: an SVG filter region is sized to the circle's path, so it would clip the thick ring (visible notch). */
-.reference-donut circle[role="button"]:hover { opacity:.85; }
+.reference-donut .donut-slice[role="button"]:hover { opacity:.85; }
 
 /* Smooth, damped transitions when chart selections change. */
 :root { --ease-out:cubic-bezier(.22,1,.36,1); }
-.reference-donut circle { transition:stroke .45s var(--ease-out), stroke-dasharray .7s var(--ease-out), stroke-dashoffset .7s var(--ease-out), opacity .2s ease; }
+.reference-donut .donut-slice { transition:fill .45s var(--ease-out), opacity .2s ease; }
 .donut-callout { animation:callout-in .45s var(--ease-out) both; }
 @keyframes callout-in { from { opacity:0; transform:translateY(4px); } to { opacity:1; transform:none; } }
 .office-bar { transition:height .7s var(--ease-out); }
@@ -280,7 +285,7 @@ main.complaint-detail-page { height:auto; min-height:calc(100dvh - 80px); displa
 @media (prefers-reduced-motion:reduce) {
   .fade-text { animation:none; }
   .office-column { transition:none; }
-  .reference-donut circle,.office-bar,.office-bar>span,.office-tooltip { transition:none; }
+  .reference-donut .donut-slice,.office-bar,.office-bar>span,.office-tooltip { transition:none; }
   .donut-callout,.office-tooltip { animation:none; }
 }
 
@@ -375,13 +380,14 @@ body:has(.data-status-bar) { padding-bottom:28px; }
   box-shadow:0 2px 8px #0002; animation:toast-life 5s ease both; }
 .refresh-toast.success { background:#c9f0c4; color:#1d5a1a; }
 .refresh-toast.failed { background:#f6a8a3; color:#7a1612; }
+.refresh-toast.empty { background:#ffe7a8; color:#6b4a00; }
 .refresh-toast button { position:absolute; right:10px; border:0; background:none; color:inherit; font-size:18px; line-height:1; padding:0 4px; }
 @keyframes toast-life { 0% { opacity:0; margin-top:-6px; } 6%, 85% { opacity:1; margin-top:6px; } 100% { opacity:0; } }
 @media (prefers-reduced-motion:reduce) { .refresh-toast { animation:none; } }
 
 /* No focus rectangle around donut slices / bars when clicked; keyboard focus darkens the slice or bar instead. */
-.reference-donut circle:focus,.reference-donut circle:focus-visible,.office-bar:focus,.office-bar:focus-visible { outline:none; }
-.reference-donut circle:focus-visible { opacity:.75; }
+.reference-donut .donut-slice:focus,.reference-donut .donut-slice:focus-visible,.office-bar:focus,.office-bar:focus-visible { outline:none; }
+.reference-donut .donut-slice:focus-visible { opacity:.75; }
 .office-bar:focus-visible { filter:brightness(.82); }
 
 /* Searchable dropdown (การไฟฟ้า): the field is a text box; the current selection shows as its placeholder. */
@@ -413,3 +419,48 @@ body:has(.data-status-bar) { padding-bottom:calc(var(--footer-h) + 28px); }
   :root { --footer-h:40px; }
   footer { flex-wrap:wrap; align-content:center; gap:0 8px; white-space:normal; line-height:1.3; }
 }
+
+/* ข้อมูลส่วนเกิน (system-test cases): listed only when picked in the พื้นที่ filter, never counted */
+.extra-data { margin:12px 12px 0; }
+.extra-data h3 { font-size:14px; font-weight:600; color:#666; margin-bottom:8px; }
+.extra-data-scroll { overflow-x:auto; }
+.extra-data table { width:100%; border-collapse:collapse; font-size:13px; }
+.extra-data th { background:#f1f1f1; font-weight:600; text-align:left; padding:7px 10px; border-bottom:1px solid #ddd; white-space:nowrap; }
+.extra-data td { padding:6px 10px; border-bottom:1px solid #eee; white-space:nowrap; }
+.extra-data-card { grid-column:1 / -1; padding:18px 10px 16px; }
+
+
+/* Donut + legend sit in the vertical middle of their card when the card is taller than they need. */
+.donut-stack .reference-donut .donut-visual { margin-top:auto; }
+.donut-stack .reference-donut .reference-donut-legend { margin-bottom:auto; }
+
+/* Horizontal bar charts: long (wrapped) names get breathing room above and below, and the bar track stretches to
+   the full row height so the vertical gridlines run unbroken from the first row to the last. */
+.horizontal-row { align-items:stretch; }
+.horizontal-label { align-self:center; padding:8px 0; }
+.horizontal-count { align-self:center; }
+.horizontal-track { height:auto; min-height:58px; }
+
+/* Overview: slightly shorter donut cards (the bar chart beside them follows their height). */
+@media (min-width:1024px) and (min-height:700px) {
+  .reference-donut .donut-visual { aspect-ratio:680 / 290; }
+  .reference-donut-legend { padding-top:2px; padding-bottom:6px; }
+  /* Cards are as tall as the donuts need instead of stretching to fill a tall window. */
+  .overview-charts { flex:0 0 auto; }
+}
+
+/* Overview on desktop at any window height: the bar chart card starts and ends level with the two donut cards. */
+@media (min-width:1024px) {
+  .overview-charts { align-items:stretch; }
+  .overview-charts .main-chart { margin-top:0; min-height:0; }
+  .overview-charts .main-chart .office-chart-area { flex:1; min-height:220px; }
+}
+
+/* Bar chart columns may narrow so all areas fit the card without sideways scrolling (many offices still scroll). */
+.office-column { min-width:36px; }
+
+/* Bar chart labels: height follows --label-h (set by the chart); long names switch to vertical text read bottom-to-top. */
+.office-label { height:var(--label-h, 65px); }
+.office-axis { padding-bottom:var(--label-h, 65px); }
+.vertical-labels .office-label { writing-mode:vertical-rl; transform:rotate(180deg); align-self:center; text-align:end;
+  padding:0 0 0 0; padding-bottom:6px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; line-height:1.2; }

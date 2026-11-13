@@ -1,7 +1,8 @@
-import React, { useRef, useState } from 'react';
+import React, { useLayoutEffect, useRef, useState } from 'react';
 import { Card, Fade, unknownVoiceType, voiceTypes, voiceTypesFor, withoutUnknown } from './Cards.jsx';
 import { REGION_ORDER } from '../data/filters.js';
 import { numberLabel, percentLabel } from '../data/overview.js';
+import ExtraDataTable from './ExtraDataTable.jsx';
 
 const regionColors = { 'ภาคเหนือ':'#ac4dbb', 'ภาคตะวันออกเฉียงเหนือ':'#711490', 'ภาคกลาง':'#f3917c', 'ภาคใต้':'#c453a9', 'สำนักงานใหญ่':'#ffc274',
   // Areas reuse their region's hue in three shades so neighbouring areas stay distinguishable.
@@ -11,33 +12,61 @@ const MAX_CALLOUTS_PER_SIDE = 5;
 const voiceColors = { complaint:'#ee405b', suggestion:'#ff9c24', incident:'#ffdf5b', tip:'#89f8bb', praise:'#00884c', unknown:'#b5b5b5' };
 const colorFor = (value, voice) => voice ? voiceColors[[...voiceTypes, unknownVoiceType].find(type => type.label === value)?.color] ?? '#777' : regionColors[value] ?? '#777';
 const RING_OUTER = 144;
+const RING_INNER = 68;
+/**
+ * One donut slice as a filled ring segment (percent from 12 o'clock, clockwise).
+ * Drawn as its own shape instead of a dashed circle stroke, which leaves a join spike at the circle's start point.
+ */
+function slicePath(startPercent, percent) {
+  const point = (radius, value) => {
+    const angle = value / 100 * Math.PI * 2 - Math.PI / 2;
+    return `${(300 + Math.cos(angle) * radius).toFixed(3)} ${(150 + Math.sin(angle) * radius).toFixed(3)}`;
+  };
+  // A full ring is two half arcs (one arc cannot start and end on the same point).
+  if (percent >= 99.999) return slicePath(0, 50) + ' ' + slicePath(50, 50);
+  const end = startPercent + percent, large = percent > 50 ? 1 : 0;
+  return `M${point(RING_OUTER, startPercent)} A${RING_OUTER} ${RING_OUTER} 0 ${large} 1 ${point(RING_OUTER, end)} L${point(RING_INNER, end)} A${RING_INNER} ${RING_INNER} 0 ${large} 0 ${point(RING_INNER, startPercent)}Z`;
+}
 const LEADER_RADIUS = 160;
-const message = status => status === 'loading' ? 'กำลังโหลดข้อมูล…' : status === 'error' ? 'โหลดข้อมูลไม่สำเร็จ' : 'ไม่พบข้อมูล';
+const LABEL_FONT = '11px Prompt, sans-serif';
+const LABEL_HEIGHT = 65;        // horizontal labels (up to 3 short lines)
+const MAX_VERTICAL_LABEL = 120; // vertical labels: longer names are cut with …
+let measureContext = null;
+const textWidth = text => {
+  measureContext ??= document.createElement('canvas').getContext('2d');
+  measureContext.font = LABEL_FONT;
+  return measureContext.measureText(text).width;
+};
 
-export function DonutChart({ title, rows: allRows, status, voice = false, selected, onSelect }) {
-  // ไม่ระบุ is not charted: slices, percentages and the centre total cover only the drawn categories.
-  const rows = withoutUnknown(allRows);
-  const total = rows.reduce((sum, row) => sum + row.count, 0);
-  const order = voice
-    ? ['ข้อเสนอแนะ/ข้อคิดเห็น', 'แจ้งเหตุ', 'แจ้งเบาะแส', 'ชื่นชม', 'ร้องเรียน']
-    : ['ภาคกลาง', 'สำนักงานใหญ่', 'ภาคตะวันออกเฉียงเหนือ', 'ภาคเหนือ', 'ภาคใต้', ...REGION_ORDER.slice(5)];
-  const rank = value => { const index = order.indexOf(value); return index < 0 ? order.length : index; };
-  const ordered = [...rows].sort((a, b) => rank(a.value) - rank(b.value));
+const splitLabel = value => value === 'ภาคตะวันออกเฉียงเหนือ' ? ['ภาคตะวันออก', 'เฉียงเหนือ'] : value === 'ข้อเสนอแนะ/ข้อคิดเห็น' ? ['ข้อเสนอแนะ/', 'ข้อคิดเห็น'] : [value];
+// Do segments p1-p2 and p3-p4 cross?
+const crosses = (a, b, c, d) => {
+  const side = (p, q, r) => Math.sign((q[0] - p[0]) * (r[1] - p[1]) - (q[1] - p[1]) * (r[0] - p[0]));
+  return side(a, b, c) * side(a, b, d) < 0 && side(c, d, a) * side(c, d, b) < 0;
+};
+// Shortest distance from the donut centre to segment a-b.
+const centreDistance = (a, b) => {
+  const dx = b[0] - a[0], dy = b[1] - a[1];
+  const t = Math.max(0, Math.min(1, ((300 - a[0]) * dx + (150 - a[1]) * dy) / (dx * dx + dy * dy || 1)));
+  return Math.hypot(a[0] + t * dx - 300, a[1] + t * dy - 150);
+};
+
+/** Slices and callout positions for one starting rotation (percent of a turn), with a score: lower looks better. */
+function layoutDonut(ordered, rotation, dimmed) {
   let offset = 0;
   const slices = ordered.map(row => {
     const start = offset; offset += row.percentage;
-    const angle = (start + row.percentage / 2) / 100 * Math.PI * 2 - Math.PI / 2;
+    const angle = (rotation + start + row.percentage / 2) / 100 * Math.PI * 2 - Math.PI / 2;
     const cos = Math.cos(angle), sin = Math.sin(angle);
-    const label = row.value === 'ภาคตะวันออกเฉียงเหนือ' ? ['ภาคตะวันออก', 'เฉียงเหนือ'] : row.value === 'ข้อเสนอแนะ/ข้อคิดเห็น' ? ['ข้อเสนอแนะ/', 'ข้อคิดเห็น'] : [row.value];
-    // Leader starts on the ring's outer edge and leaves radially before bending toward its label.
-    return { ...row, start, label, right: cos >= 0,
+    // Leader starts on the ring's outer edge; bx/by (just outside the ring) seed where the label sits.
+    return { ...row, start, drawStart: rotation + start, label: splitLabel(row.value), right: cos >= 0,
       x: 300 + cos * (RING_OUTER + 2), y: 150 + sin * (RING_OUTER + 2),
       bx: 300 + cos * LEADER_RADIUS, by: 150 + sin * LEADER_RADIUS };
   });
-  const dimmed = row => selected != null && selected !== row.value;
   // With many slices (e.g. 13 areas) only the largest per side get a callout; the rest stay in the legend and tooltip.
   const callouts = [false, true].flatMap(right => slices.filter(row => !dimmed(row) && row.right === right)
     .sort((a, b) => b.count - a.count).slice(0, MAX_CALLOUTS_PER_SIDE));
+  let score = 0;
   for (const right of [false, true]) {
     const side = callouts.filter(row => row.right === right).sort((a, b) => a.by - b.by);
     // Keep each label near its slice, then push apart so text blocks never overlap or leave the frame.
@@ -52,19 +81,53 @@ export function DonutChart({ title, rows: allRows, status, voice = false, select
     side.forEach(row => {
       const dy = row.labelY - 150;
       const clearance = Math.sqrt(Math.max(0, LEADER_RADIUS ** 2 - dy ** 2)) + 10;
-      const elbow = Math.max(Math.abs(row.bx - 300) + 6, clearance);
+      // Straight leader: one segment from the ring edge to where the label's underline starts (kept outside the ring).
+      const elbow = Math.max(Math.abs(row.x - 300) + 14, clearance);
       row.elbowX = right ? 300 + elbow : 300 - elbow;
+      row.leader = [[row.x, row.y], [row.elbowX, row.labelY]];
+      score += Math.abs(row.labelY - row.by);
+      if (centreDistance(...row.leader) < RING_OUTER) score += 1000;   // leader cuts through the ring
     });
+    side.forEach((row, index) => side.slice(index + 1).forEach(other => {
+      if (crosses(...row.leader, ...other.leader)) score += 1000;    // leaders cross
+      score += Math.max(0, 12 - Math.hypot(row.x - other.x, row.y - other.y)) * 4;   // leaders start on top of each other
+    }));
   }
+  return { slices, callouts, score };
+}
+const message = status => status === 'loading' ? 'กำลังโหลดข้อมูล…' : status === 'error' ? 'โหลดข้อมูลไม่สำเร็จ' : 'ไม่พบข้อมูล';
+
+export function DonutChart({ title, rows: allRows, status, voice = false, selected, onSelect }) {
+  // ไม่ระบุ is not charted: slices, percentages and the centre total cover only the drawn categories.
+  const rows = withoutUnknown(allRows);
+  const total = rows.reduce((sum, row) => sum + row.count, 0);
+  const order = voice
+    ? ['ข้อเสนอแนะ/ข้อคิดเห็น', 'แจ้งเหตุ', 'แจ้งเบาะแส', 'ชื่นชม', 'ร้องเรียน']
+    : ['ภาคกลาง', 'สำนักงานใหญ่', 'ภาคตะวันออกเฉียงเหนือ', 'ภาคเหนือ', 'ภาคใต้', ...REGION_ORDER.slice(5)];
+  const rank = value => { const index = order.indexOf(value); return index < 0 ? order.length : index; };
+  const ordered = [...rows].sort((a, b) => rank(a.value) - rank(b.value));
+  // Voice legend reads ชื่นชม → แจ้งเบาะแส → แจ้งเหตุ → ข้อเสนอแนะ → ร้องเรียน (slices keep their own order).
+  const legendOrder = ['ชื่นชม', 'แจ้งเบาะแส', 'แจ้งเหตุ', 'ข้อเสนอแนะ/ข้อคิดเห็น', 'ร้องเรียน'];
+  const legendRank = value => { const index = legendOrder.indexOf(value); return index < 0 ? legendOrder.length : index; };
+  const legendRows = voice ? [...ordered].sort((a, b) => legendRank(a.value) - legendRank(b.value)) : ordered;
+  const dimmed = row => selected != null && selected !== row.value;
+  // Try every starting angle and keep the one whose labels sit closest to their slices with no crossing leaders
+  // (small neighbouring slices end up at the sides, where their labels can spread vertically).
+  let best = null;
+  for (let rotation = 0; rotation < 100; rotation++) {
+    const layout = layoutDonut(ordered, rotation, dimmed);
+    if (!best || layout.score < best.score - 0.5) best = layout;
+  }
+  const { slices, callouts } = best;
   return <Card title={title} className="chart-card live-donut reference-donut">
     {status !== 'ready' || !total ? <div className="overview-empty">{message(status)}</div> : <>
       <div className="donut-visual"><svg viewBox="-40 -12 680 336" aria-label={`${title} รวม ${numberLabel(total)} เรื่อง`}>
-        {slices.map(row => <circle key={row.value} cx="300" cy="150" r="106" fill="none" strokeWidth="76" pathLength="100" style={{ stroke: dimmed(row) ? '#e8e8e8' : colorFor(row.value, voice), strokeDasharray: `${row.percentage} ${100 - row.percentage}`, strokeDashoffset: -row.start }} transform="rotate(-90 300 150)" aria-pressed={onSelect ? selected === row.value : undefined} tabIndex="0" role={onSelect ? 'button' : 'img'} aria-label={`${row.value}: ${numberLabel(row.count)} เรื่อง (${percentLabel(row.percentage)})`} onClick={onSelect ? () => onSelect(row.value) : undefined} onKeyDown={onSelect ? event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onSelect(row.value); } } : undefined}><title>{row.value}: {numberLabel(row.count)} เรื่อง ({percentLabel(row.percentage)})</title></circle>)}
+        {slices.map(row => <path key={row.value} className="donut-slice" d={slicePath(row.drawStart, row.percentage)} style={{ fill: dimmed(row) ? '#e8e8e8' : colorFor(row.value, voice) }} aria-pressed={onSelect ? selected === row.value : undefined} tabIndex="0" role={onSelect ? 'button' : 'img'} aria-label={`${row.value}: ${numberLabel(row.count)} เรื่อง (${percentLabel(row.percentage)})`} onClick={onSelect ? () => onSelect(row.value) : undefined} onKeyDown={onSelect ? event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onSelect(row.value); } } : undefined}><title>{row.value}: {numberLabel(row.count)} เรื่อง ({percentLabel(row.percentage)})</title></path>)}
         {callouts.map(row => {
           const end = row.right ? 632 : -32;
           const { label } = row;
           return <g style={{pointerEvents:'none'}} key={row.value} className="donut-callout" aria-hidden="true">
-            <polyline points={`${row.x},${row.y} ${row.bx},${row.by} ${row.elbowX},${row.labelY} ${end},${row.labelY}`} fill="none" stroke="#222" strokeWidth="1.5" strokeLinejoin="round" />
+            <polyline points={`${row.x},${row.y} ${row.elbowX},${row.labelY} ${end},${row.labelY}`} fill="none" stroke="#222" strokeWidth="1.5" strokeLinejoin="round" />
             <text x={end} y={row.labelY - 29 - (label.length - 1) * 19} textAnchor={row.right ? 'end' : 'start'}>{label.map((line, index) => <tspan x={end} dy={index ? 19 : 0} key={line}>{line}</tspan>)}</text>
             <Fade as="text" x={end} y={row.labelY - 7} textAnchor={row.right ? 'end' : 'start'} className="donut-callout-value">{`${numberLabel(row.count)} เรื่อง (${percentLabel(row.percentage)})`}</Fade>
           </g>;
@@ -73,12 +136,13 @@ export function DonutChart({ title, rows: allRows, status, voice = false, select
         <Fade as="text" style={{pointerEvents:'none'}} x="300" y="175" textAnchor="middle" className="reference-center-caption">{`${numberLabel(total)} เรื่อง`}</Fade>
         
       </svg></div>
-      <ul className="reference-donut-legend">{ordered.map(row => <li key={row.value}><span className="dot" style={{background:colorFor(row.value, voice)}} />{row.value}</li>)}</ul>
+      <ul className="reference-donut-legend">{legendRows.map(row => <li key={row.value}><span className="dot" style={{background:colorFor(row.value, voice)}} />{row.value}</li>)}</ul>
     </>}
   </Card>;
 }
 
-export function OfficeChart({ rows: allRows, status, onSelect, title = 'เสียงของลูกค้าจำแนกตามการไฟฟ้า' }) {
+/** extraRecords: system-test cases picked in the พื้นที่ filter; listed as a table in the chart area, never counted in the bars. */
+export function OfficeChart({ rows: allRows, status, onSelect, title = 'เสียงของลูกค้าจำแนกตามการไฟฟ้า', extraRecords = [] }) {
   const rows = withoutUnknown(allRows);
   const visible = rows.filter(row => !row.hidden);
   const types = voiceTypesFor(visible);
@@ -92,6 +156,25 @@ export function OfficeChart({ rows: allRows, status, onSelect, title = 'เส�
   const areaRef = useRef(null);
   const tipRef = useRef(null);
   const [hover, setHover] = useState(null);
+  // Names that do not fit their column on one line are turned vertical (all together), and the label row grows to fit them.
+  const scrollRef = useRef(null);
+  const [labels, setLabels] = useState({ vertical: false, height: LABEL_HEIGHT });
+  const labelKey = visible.map(row => row.value).join('|');
+  useLayoutEffect(() => {
+    const element = scrollRef.current;
+    if (!element || !visible.length) return undefined;
+    const update = () => {
+      const column = Math.max(element.clientWidth / visible.length, 40) - 6; // columns are at least 40px (they scroll beyond that)
+      const longest = Math.max(...visible.map(row => textWidth(String(row.value))));
+      const vertical = longest > column;
+      const height = vertical ? Math.min(MAX_VERTICAL_LABEL, Math.ceil(longest) + 14) : LABEL_HEIGHT;
+      setLabels(current => current.vertical === vertical && current.height === height ? current : { vertical, height });
+    };
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [labelKey]);
   // Anchor the tooltip at the pointer (or the bar top for keyboard focus), kept inside the chart area.
   const place = (row, clientX, clientY) => {
     const area = areaRef.current.getBoundingClientRect();
@@ -103,10 +186,10 @@ export function OfficeChart({ rows: allRows, status, onSelect, title = 'เส�
   };
   const focusBar = (row, element) => { const box = element.getBoundingClientRect(); place(row, box.left + box.width / 2, box.top); };
   return <Card title={title} fadeTitle className="chart-card main-chart live-office-chart">
-    {status !== 'ready' || !visible.length ? <div className="overview-empty">{message(status)}</div> : <>
-      <div className="office-chart-area" ref={areaRef} style={{ '--grid-step': `${100 / steps}%` }}>
+    {status !== 'ready' || !visible.length ? (status === 'ready' && extraRecords.length ? null : <div className="overview-empty">{message(status)}</div>) : <>
+      <div className={`office-chart-area${labels.vertical ? ' vertical-labels' : ''}`} ref={areaRef} style={{ '--grid-step': `${100 / steps}%`, '--label-h': `${labels.height}px` }}>
         <div className="office-axis" aria-hidden="true">{Array.from({length:steps + 1}, (_, i) => <Fade key={i}>{numberLabel(ceiling - i * step)}</Fade>)}</div>
-        <div className="office-scroll" onScroll={() => setHover(null)}><div className="office-columns" style={{minWidth:`${visible.length * 66}px`}}>
+        <div className="office-scroll" ref={scrollRef} onScroll={() => setHover(null)}><div className="office-columns" style={{minWidth:`${visible.length * 40}px`}}>
           {rows.map(row => <div className={`office-column${row.hidden ? ' is-hidden' : ''}`} key={row.key ?? row.value} aria-hidden={row.hidden || undefined}>
             <div className="office-bar-space"><div className={`office-bar${clickable(row) ? ' is-clickable' : ''}`} style={{height:`${row.count / ceiling * 100}%`}} tabIndex={row.hidden ? -1 : 0} role={clickable(row) ? 'button' : 'img'} aria-label={`${row.value}: ${numberLabel(row.count)} เรื่อง`}
               onMouseMove={event => place(row, event.clientX, event.clientY)} onMouseLeave={() => setHover(null)}
@@ -114,7 +197,7 @@ export function OfficeChart({ rows: allRows, status, onSelect, title = 'เส�
               onClick={clickable(row) ? () => onSelect(row.value) : undefined} onKeyDown={clickable(row) ? event => {if(event.key === 'Enter' || event.key === ' ') {event.preventDefault();onSelect(row.value);}} : undefined}>
               {[...types].reverse().map(type => { const value = row.groups.find(group => group.value === type.label); return <span key={type.color} style={{height:`${row.count ? (value?.count ?? 0) / row.count * 100 : 0}%`,background:voiceColors[type.color]}} />; })}
             </div></div>
-            <span className="office-label">{row.value}</span>
+            <span className="office-label" title={row.value}>{row.value}</span>
           </div>)}
         </div></div>
         {hover && <div ref={tipRef} className={`office-tooltip${hover.below ? ' below' : ''}`} role="tooltip" style={{left:hover.left, top:hover.top, '--arrow-x':`${hover.arrow}px`}}>
@@ -126,5 +209,6 @@ export function OfficeChart({ rows: allRows, status, onSelect, title = 'เส�
         </div>}
       </div>
     </>}
+    {status === 'ready' && extraRecords.length > 0 && <ExtraDataTable records={extraRecords} />}
   </Card>;
 }
