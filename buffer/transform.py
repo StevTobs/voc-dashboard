@@ -187,6 +187,16 @@ def build_records(tables: Dict[str, List[Dict[str, Any]]], mapping: Dict[str, An
             "region_name": area["region"] if area else unknown,
         })
 
+    # ประเภทเรื่องที่ไม่แสดง (mapping.exclude_cases): แถวที่ตรงทุกคอลัมน์ในกฎใดกฎหนึ่งจะไม่ถูกส่งไป dashboard (นับในรายงาน)
+    rules = [{key: value for key, value in rule.items() if not key.startswith("_")} for rule in mapping.get("exclude_cases", [])]
+    kept = []
+    for record in records:
+        if any(rule and all(record.get(key) == value for key, value in rule.items()) for rule in rules):
+            skipped["ประเภทเรื่องที่ไม่แสดง (exclude_cases)"] += 1
+        else:
+            kept.append(record)
+    records = kept
+
     # สาขาคนละเขตที่ชื่อซ้ำกัน (เช่น กฟอ.เฉลิมพระเกียรติ ใน ต.2 และ ฉ.3) ต่อท้ายด้วยเขต เพื่อให้หนึ่งชื่ออยู่ได้พื้นที่เดียว
     office_areas: Dict[str, set] = {}
     for record in records:

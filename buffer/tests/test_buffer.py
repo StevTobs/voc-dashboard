@@ -83,6 +83,17 @@ class TransformTest(unittest.TestCase):
         self.assertEqual((records[0]["topic_level2"], records[0]["subissue_level4"]), ("ช่องทางและการให้บริการ", "ไฟกระพริบ"))
         self.assertNotIn("topic_level2", report["unmapped"])
 
+    def test_exclude_cases_drops_only_full_matches(self):
+        case = {"voice_type_level1": "แจ้งเหตุ", "topic_level2": "บริการ", "issue_level3": "ค่าไฟฟ้าผิดปกติ", "subissue_level4": "บิลผิด"}
+        mapping = {**MAPPING, "voice_type": {"map": {"แจ้งเหตุ": "แจ้งเหตุ"}}, "exclude_cases": [{"_comment": "x", **case}]}
+        request = [{"id": "t-req", "name": "แจ้งเหตุ"}]
+        records, report = build_records(tables(voc_request_types=request), mapping, AS_OF)
+        self.assertEqual(records, [])
+        self.assertEqual(report["skipped"]["ประเภทเรื่องที่ไม่แสดง (exclude_cases)"], 1)
+        # one differing column → kept
+        partial = {**mapping, "exclude_cases": [{**case, "subissue_level4": "อื่น"}]}
+        self.assertEqual(len(build_records(tables(voc_request_types=request), partial, AS_OF)[0]), 1)
+
     def test_same_office_name_in_two_areas_gets_area_suffix(self):
         base = tables()
         masters = [base["voc_master"][0], {**base["voc_master"][0], "id": "m2", "voc_no": "C-2"}]

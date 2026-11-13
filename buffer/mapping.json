@@ -15,6 +15,13 @@
     "exclude": ["ยกเลิกคำร้อง"]
   },
 
+  "exclude_cases": [
+    {
+      "_comment": "ประเภทเรื่องที่ไม่แสดงบน dashboard (ตรงทุกคอลัมน์ที่ระบุ) — ตัด Reset PEA Smart Plus ทุกเรื่อง ไม่ว่าประเภทเสียง/หัวข้อ/ประเด็นใด",
+      "subissue_level4": "Reset PEA Smart Plus"
+    }
+  ],
+
   "sla": {
     "_comment": "นับวันจาก created_at ถึง completed_date (ปิดแล้ว) หรือถึงวันที่ดึงข้อมูล (ยังไม่ปิด)",
     "overdue_after_days": 30,

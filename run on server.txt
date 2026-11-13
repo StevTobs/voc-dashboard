@@ -1,0 +1,2 @@
+cd C:\Users\497934\Desktop\DEV-TOP\pea-voc-database-query
+.\tools\caddy.exe run --config Caddyfile --adapter caddyfile
