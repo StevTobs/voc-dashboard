@@ -466,3 +466,4 @@ body:has(.data-status-bar) { padding-bottom:calc(var(--footer-h) + 28px); }
   padding:0 0 0 0; padding-bottom:6px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; line-height:1.2; }
 
 .extra-data-note { font-size:12px; color:#666; margin:2px 0 8px; }
+.reference-center-caption.small { font-size:15px; font-weight:400; fill:#555; }

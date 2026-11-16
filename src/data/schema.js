@@ -7,20 +7,32 @@ export const VOICE_TYPES = ['ร้องเรียน', 'ข้อเสน�
 export const UNKNOWN_VALUE = 'ไม่ระบุ';
 /** Area of system-test cases (no request_pea, see buffer/mapping.json no_request_pea). They are extra data: never counted in any statistic. */
 export const TEST_REGION = 'ไม่ระบุ (สตภ. ทดสอบระบบ)';
-/** Why a record is incomplete (no area, no การไฟฟ้า or no voice type), or null when it is complete. */
+/** Why a record is incomplete (no area or no voice type), or null when it is complete.
+ * A record with an area but no การไฟฟ้า (e.g. "ไม่ระบุ (ก.2)") still counts: it belongs to that area. */
 export function incompleteReason(record) {
   const missing = value => String(value ?? '').startsWith(UNKNOWN_VALUE);
   if (record.region === TEST_REGION) return 'ไม่ระบุพื้นที่ (สตภ. ทดสอบระบบ)';
   if (missing(record.region)) return 'ไม่ระบุพื้นที่';
-  if (missing(record.pea_office)) return 'ไม่ระบุการไฟฟ้า';
-  if (missing(record.voice_type_level1)) return 'ไม่ระบุประเภทเสียง';
+  // C- cases always count, even without a voice type (they appear as a grey ไม่ระบุ slice).
+  if (missing(record.voice_type_level1) && !String(record.complaint_id).startsWith('C-')) return 'ไม่ระบุประเภทเสียง';
   return null;
 }
+/** Every missing core field of a record (area, การไฟฟ้า, voice type, หัวข้อ), e.g. ['ไม่ระบุการไฟฟ้า']; empty when complete. */
+export function dataProblems(record) {
+  const missing = value => String(value ?? '').startsWith(UNKNOWN_VALUE);
+  return [
+    record.region === TEST_REGION ? 'ไม่ระบุพื้นที่ (สตภ. ทดสอบระบบ)' : missing(record.region) && 'ไม่ระบุพื้นที่',
+    missing(record.pea_office) && record.region !== TEST_REGION && 'ไม่ระบุการไฟฟ้า',
+    missing(record.voice_type_level1) && 'ไม่ระบุประเภทเสียง',
+    missing(record.topic_level2) && 'ไม่ระบุหัวข้อ',
+  ].filter(Boolean);
+}
 /** Splits off incomplete records so no chart, total or filter ever counts them (every donut then sums to the same total).
- * They are listed, with the reason, only when the TEST_REGION option is picked in the พื้นที่ filter. */
+ * testRecords lists every record with a data problem, counted or not; it is shown (with the problems)
+ * only when the TEST_REGION option is picked in the พื้นที่ filter. */
 export function splitTestRecords(records) {
-  const testRecords = records.filter(record => incompleteReason(record));
-  return { records: testRecords.length ? records.filter(record => !incompleteReason(record)) : records, testRecords };
+  const testRecords = records.filter(record => dataProblems(record).length);
+  return { records: records.some(incompleteReason) ? records.filter(record => !incompleteReason(record)) : records, testRecords };
 }
 export const SLA_STATUSES = ['เกินกำหนด', 'ใกล้ครบกำหนด', 'ภายในกำหนด'];
 export const HIERARCHY_FIELDS = ['voice_type_level1', 'topic_level2', 'issue_level3', 'subissue_level4'];

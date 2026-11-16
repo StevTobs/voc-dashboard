@@ -1,5 +1,5 @@
 import React, { useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { Card, Fade, unknownVoiceType, voiceTypes, voiceTypesFor, withoutUnknown } from './Cards.jsx';
+import { Card, Fade, isUnknown, unknownVoiceType, voiceTypes, voiceTypesFor, withoutUnknown } from './Cards.jsx';
 import { REGION_ORDER } from '../data/filters.js';
 import { numberLabel, percentLabel } from '../data/overview.js';
 import ExtraDataTable from './ExtraDataTable.jsx';
@@ -10,7 +10,16 @@ const regionColors = { 'ภาคเหนือ':'#ac4dbb', 'ภาคตะว
   'ก.1':'#f8b7a8', 'ก.2':'#f3917c', 'ก.3':'#d9684f', 'ต.1':'#e08ccb', 'ต.2':'#c453a9', 'ต.3':'#932f7c', 'สนญ.':'#ffc274' };
 const MAX_CALLOUTS_PER_SIDE = 5;
 const voiceColors = { complaint:'#ee405b', suggestion:'#ff9c24', incident:'#ffdf5b', tip:'#89f8bb', praise:'#00884c', unknown:'#b5b5b5' };
-const colorFor = (value, voice) => voice ? voiceColors[[...voiceTypes, unknownVoiceType].find(type => type.label === value)?.color] ?? '#777' : regionColors[value] ?? '#777';
+/** Merges every unknown value into one grey "ไม่ระบุ" slice, so each donut's total covers every counted record. */
+function withUnknownSlice(rows) {
+  const known = rows.filter(row => !isUnknown(row.value));
+  const unknownCount = rows.filter(row => isUnknown(row.value)).reduce((sum, row) => sum + row.count, 0);
+  const all = unknownCount ? [...known, { value: UNKNOWN_SLICE, count: unknownCount }] : known;
+  const total = all.reduce((sum, row) => sum + row.count, 0);
+  return all.map(row => ({ ...row, percentage: total ? row.count / total * 100 : 0 }));
+}
+const UNKNOWN_SLICE = unknownVoiceType.label;
+const colorFor = (value, voice) => value === UNKNOWN_SLICE ? voiceColors.unknown : voice ? voiceColors[[...voiceTypes, unknownVoiceType].find(type => type.label === value)?.color] ?? '#777' : regionColors[value] ?? '#777';
 const RING_OUTER = 144;
 const RING_INNER = 68;
 /**
@@ -64,7 +73,7 @@ function layoutDonut(ordered, rotation, dimmed) {
       bx: 300 + cos * LEADER_RADIUS, by: 150 + sin * LEADER_RADIUS };
   });
   // With many slices (e.g. 13 areas) only the largest per side get a callout; the rest stay in the legend and tooltip.
-  const callouts = [false, true].flatMap(right => slices.filter(row => !dimmed(row) && row.right === right)
+  const callouts = [false, true].flatMap(right => slices.filter(row => !dimmed(row) && row.value !== UNKNOWN_SLICE && row.right === right)
     .sort((a, b) => b.count - a.count).slice(0, MAX_CALLOUTS_PER_SIDE));
   let score = 0;
   for (const right of [false, true]) {
@@ -98,15 +107,15 @@ function layoutDonut(ordered, rotation, dimmed) {
 const message = status => status === 'loading' ? 'กำลังโหลดข้อมูล…' : status === 'error' ? 'โหลดข้อมูลไม่สำเร็จ' : 'ไม่พบข้อมูล';
 
 export function DonutChart({ title, rows: allRows, status, voice = false, selected, onSelect, layoutRows = allRows }) {
-  // ไม่ระบุ is not charted: slices, percentages and the centre total cover only the drawn categories.
-  const rows = withoutUnknown(allRows);
+  // Every counted record is in the donut (unknowns as one grey slice), so both donuts show the same total.
+  const rows = withUnknownSlice(allRows);
   const total = rows.reduce((sum, row) => sum + row.count, 0);
   const order = voice
     ? ['ข้อเสนอแนะ/ข้อคิดเห็น', 'แจ้งเหตุ', 'แจ้งเบาะแส', 'ชื่นชม', 'ร้องเรียน']
     : ['ภาคกลาง', 'สำนักงานใหญ่', 'ภาคตะวันออกเฉียงเหนือ', 'ภาคเหนือ', 'ภาคใต้', ...REGION_ORDER.slice(5)];
   const rank = value => { const index = order.indexOf(value); return index < 0 ? order.length : index; };
   const ordered = [...rows].sort((a, b) => rank(a.value) - rank(b.value));
-  const layoutOrdered = [...withoutUnknown(layoutRows)].sort((a, b) => rank(a.value) - rank(b.value));
+  const layoutOrdered = [...withUnknownSlice(layoutRows)].sort((a, b) => rank(a.value) - rank(b.value));
   // Voice legend reads ชื่นชม → แจ้งเบาะแส → แจ้งเหตุ → ข้อเสนอแนะ → ร้องเรียน (slices keep their own order).
   const legendOrder = ['ชื่นชม', 'แจ้งเบาะแส', 'แจ้งเหตุ', 'ข้อเสนอแนะ/ข้อคิดเห็น', 'ร้องเรียน'];
   const legendRank = value => { const index = legendOrder.indexOf(value); return index < 0 ? legendOrder.length : index; };
@@ -124,6 +133,8 @@ export function DonutChart({ title, rows: allRows, status, voice = false, select
     return best.turn;
   }, [layoutOrdered.map(row => `${row.value}:${row.count}`).join('|')]);
   const { slices, callouts } = layoutDonut(ordered, rotation, dimmed);
+  // The centre follows the chosen slice, so it always matches what the rest of the page is showing.
+  const shownTotal = rows.find(row => row.value === selected)?.count ?? total;
   return <Card title={title} className="chart-card live-donut reference-donut">
     {status !== 'ready' || !total ? <div className="overview-empty">{message(status)}</div> : <>
       <div className="donut-visual"><svg viewBox="-40 -12 680 336" aria-label={`${title} รวม ${numberLabel(total)} เรื่อง`}>
@@ -141,8 +152,16 @@ export function DonutChart({ title, rows: allRows, status, voice = false, select
             <Fade as="text" x={end} y={row.labelY - 7} textAnchor={row.right ? 'end' : 'start'} className="donut-callout-value">{`${numberLabel(row.count)} เรื่อง (${percentLabel(row.percentage)})`}</Fade>
           </g>;
         })}
-        <text style={{pointerEvents:'none'}} x="300" y="134" textAnchor="middle" className="reference-center-caption"><tspan x="300">จำนวนเสียง</tspan><tspan x="300" dy="19">ทั้งหมด</tspan></text>
-        <Fade as="text" style={{pointerEvents:'none'}} x="300" y="175" textAnchor="middle" className="reference-center-caption">{`${numberLabel(total)} เรื่อง`}</Fade>
+        {shownTotal === total ? <>
+          <text style={{pointerEvents:'none'}} x="300" y="134" textAnchor="middle" className="reference-center-caption"><tspan x="300">จำนวนเสียง</tspan><tspan x="300" dy="19">ทั้งหมด</tspan></text>
+          <Fade as="text" style={{pointerEvents:'none'}} x="300" y="175" textAnchor="middle" className="reference-center-caption">{`${numberLabel(total)} เรื่อง`}</Fade>
+        </> : <>
+          {/* A slice is chosen: จำนวน <chosen> จากทั้งหมด <total> */}
+          <text style={{pointerEvents:'none'}} x="300" y="118" textAnchor="middle" className="reference-center-caption small">จำนวน</text>
+          <Fade as="text" style={{pointerEvents:'none'}} x="300" y="140" textAnchor="middle" className="reference-center-caption">{`${numberLabel(shownTotal)} เรื่อง`}</Fade>
+          <text style={{pointerEvents:'none'}} x="300" y="166" textAnchor="middle" className="reference-center-caption small">จากทั้งหมด</text>
+          <Fade as="text" style={{pointerEvents:'none'}} x="300" y="187" textAnchor="middle" className="reference-center-caption small">{`${numberLabel(total)} เรื่อง`}</Fade>
+        </>}
         
       </svg></div>
       <ul className="reference-donut-legend">{legendRows.map(row => <li key={row.value}><span className="dot" style={{background:colorFor(row.value, voice)}} />{row.value}</li>)}</ul>
