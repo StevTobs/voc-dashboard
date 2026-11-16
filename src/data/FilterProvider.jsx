@@ -15,7 +15,8 @@ export function FilterProvider({ children }) {
     return testRecords.length ? { ...derived, region: [...derived.region, { value: TEST_REGION, label: TEST_REGION }] } : derived;
   }, [records, testRecords]);
   // Listed (as a table) only when that area is picked; the other filters still narrow the list.
-  const extraRecords = useMemo(() => filters.region.includes(TEST_REGION) ? applyFilters(testRecords, filters) : [], [testRecords, filters]);
+  // Area and การไฟฟ้า are ignored here: the list covers every incomplete record matching the other filters.
+  const extraRecords = useMemo(() => filters.region.includes(TEST_REGION) ? applyFilters(testRecords, { ...filters, region: [], office: [] }) : [], [testRecords, filters]);
   const filteredRecords = useMemo(() => applyFilters(records, filters), [records, filters]);
   // The complaint-detail page narrows the same dataset further by การไฟฟ้า.
   const detailRecords = useMemo(() => applyFilters(filteredRecords, filters, [OFFICE_FILTER]), [filteredRecords, filters]);

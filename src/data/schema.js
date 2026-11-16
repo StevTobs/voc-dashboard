@@ -7,10 +7,20 @@ export const VOICE_TYPES = ['ร้องเรียน', 'ข้อเสน�
 export const UNKNOWN_VALUE = 'ไม่ระบุ';
 /** Area of system-test cases (no request_pea, see buffer/mapping.json no_request_pea). They are extra data: never counted in any statistic. */
 export const TEST_REGION = 'ไม่ระบุ (สตภ. ทดสอบระบบ)';
-/** Splits off system-test cases so no chart, total or filter ever sees them; the dashboard only reports how many there are. */
+/** Why a record is incomplete (no area, no การไฟฟ้า or no voice type), or null when it is complete. */
+export function incompleteReason(record) {
+  const missing = value => String(value ?? '').startsWith(UNKNOWN_VALUE);
+  if (record.region === TEST_REGION) return 'ไม่ระบุพื้นที่ (สตภ. ทดสอบระบบ)';
+  if (missing(record.region)) return 'ไม่ระบุพื้นที่';
+  if (missing(record.pea_office)) return 'ไม่ระบุการไฟฟ้า';
+  if (missing(record.voice_type_level1)) return 'ไม่ระบุประเภทเสียง';
+  return null;
+}
+/** Splits off incomplete records so no chart, total or filter ever counts them (every donut then sums to the same total).
+ * They are listed, with the reason, only when the TEST_REGION option is picked in the พื้นที่ filter. */
 export function splitTestRecords(records) {
-  const testRecords = records.filter(record => record.region === TEST_REGION);
-  return { records: testRecords.length ? records.filter(record => record.region !== TEST_REGION) : records, testRecords };
+  const testRecords = records.filter(record => incompleteReason(record));
+  return { records: testRecords.length ? records.filter(record => !incompleteReason(record)) : records, testRecords };
 }
 export const SLA_STATUSES = ['เกินกำหนด', 'ใกล้ครบกำหนด', 'ภายในกำหนด'];
 export const HIERARCHY_FIELDS = ['voice_type_level1', 'topic_level2', 'issue_level3', 'subissue_level4'];

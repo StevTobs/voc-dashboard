@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { parseComplaints } from '../src/data/csv.js';
-import { TEST_REGION, splitTestRecords } from '../src/data/schema.js';
+import { TEST_REGION, incompleteReason, splitTestRecords } from '../src/data/schema.js';
 import { aggregateOverview } from '../src/data/overview.js';
 import { DEFAULT_FILTERS, FILTER_FIELDS, OFFICE_FILTER, applyFilters, deriveFilterOptions, mismatchedOffices, normalizeFilters, officesForRegions, toggleSelection } from '../src/data/filters.js';
 
@@ -111,4 +111,13 @@ test('system-test cases (ไม่ระบุ (สตภ. ทดสอบระ
   assert.deepEqual(split.testRecords, [extra]);
   assert.ok(!deriveFilterOptions(split.records).region.some(option => option.value === TEST_REGION));
   assert.equal(splitTestRecords(records).records, records);
+});
+
+test('records without การไฟฟ้า or voice type are split off too, so every donut sums to the same total', () => {
+  const noOffice = { ...records[0], complaint_id: 'X-1', pea_office: 'ไม่ระบุ (ก.2)' };
+  const noVoice = { ...records[0], complaint_id: 'X-2', voice_type_level1: 'ไม่ระบุ' };
+  const split = splitTestRecords([...records, noOffice, noVoice]);
+  assert.equal(split.records.length, records.length);
+  assert.deepEqual(split.testRecords.map(incompleteReason), ['ไม่ระบุการไฟฟ้า', 'ไม่ระบุประเภทเสียง']);
+  assert.equal(incompleteReason(records[0]), null);
 });

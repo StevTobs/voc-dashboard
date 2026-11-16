@@ -14,6 +14,8 @@ export default function Overview({ selection, onSelectionChange }) {
   // Each donut ignores its own selection so it keeps the full breakdown and can highlight the chosen slice.
   const regionData = useMemo(() => aggregateOverview(selectOverviewRecords(filteredRecords, { ...selection, zone: null, region: null })), [filteredRecords, selection]);
   const voiceData = useMemo(() => aggregateOverview(selectOverviewRecords(filteredRecords, { ...selection, voice: null })), [filteredRecords, selection]);
+  // Donut angles are chosen from this unselected breakdown, so clicking a slice never rotates either donut.
+  const baseData = useMemo(() => aggregateOverview(filteredRecords), [filteredRecords]);
   // The bar chart starts at region level and drills into that region's offices once a region is selected.
   // Both levels stay mounted in one stable order (hidden columns fade and collapse) so switching animates.
   const columns = useMemo(() => {
@@ -41,8 +43,8 @@ export default function Overview({ selection, onSelectionChange }) {
     <StatusSummary data={data} ready={status === 'ready'} />
     <div className="overview-charts">
       <div className="donut-stack">
-        <DonutChart title="จำแนกตามภาค" rows={regionData.zones} status={status} selected={selection.zone} onSelect={toggleZone} />
-        <DonutChart title="ประเภทเสียง" rows={voiceData.voices} status={status} voice selected={selection.voice} onSelect={value => toggle('voice', value)} />
+        <DonutChart title="จำแนกตามภาค" rows={regionData.zones} layoutRows={baseData.zones} status={status} selected={selection.zone} onSelect={toggleZone} />
+        <DonutChart title="ประเภทเสียง" rows={voiceData.voices} layoutRows={baseData.voices} status={status} voice selected={selection.voice} onSelect={value => toggle('voice', value)} />
       </div>
       <OfficeChart rows={bars} status={status} onSelect={value => toggle('region', value)}
         extraRecords={selection.region ? [] : extraRecords}

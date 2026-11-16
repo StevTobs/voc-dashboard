@@ -1,4 +1,4 @@
-import React, { useLayoutEffect, useRef, useState } from 'react';
+import React, { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Card, Fade, unknownVoiceType, voiceTypes, voiceTypesFor, withoutUnknown } from './Cards.jsx';
 import { REGION_ORDER } from '../data/filters.js';
 import { numberLabel, percentLabel } from '../data/overview.js';
@@ -97,7 +97,7 @@ function layoutDonut(ordered, rotation, dimmed) {
 }
 const message = status => status === 'loading' ? 'กำลังโหลดข้อมูล…' : status === 'error' ? 'โหลดข้อมูลไม่สำเร็จ' : 'ไม่พบข้อมูล';
 
-export function DonutChart({ title, rows: allRows, status, voice = false, selected, onSelect }) {
+export function DonutChart({ title, rows: allRows, status, voice = false, selected, onSelect, layoutRows = allRows }) {
   // ไม่ระบุ is not charted: slices, percentages and the centre total cover only the drawn categories.
   const rows = withoutUnknown(allRows);
   const total = rows.reduce((sum, row) => sum + row.count, 0);
@@ -106,6 +106,7 @@ export function DonutChart({ title, rows: allRows, status, voice = false, select
     : ['ภาคกลาง', 'สำนักงานใหญ่', 'ภาคตะวันออกเฉียงเหนือ', 'ภาคเหนือ', 'ภาคใต้', ...REGION_ORDER.slice(5)];
   const rank = value => { const index = order.indexOf(value); return index < 0 ? order.length : index; };
   const ordered = [...rows].sort((a, b) => rank(a.value) - rank(b.value));
+  const layoutOrdered = [...withoutUnknown(layoutRows)].sort((a, b) => rank(a.value) - rank(b.value));
   // Voice legend reads ชื่นชม → แจ้งเบาะแส → แจ้งเหตุ → ข้อเสนอแนะ → ร้องเรียน (slices keep their own order).
   const legendOrder = ['ชื่นชม', 'แจ้งเบาะแส', 'แจ้งเหตุ', 'ข้อเสนอแนะ/ข้อคิดเห็น', 'ร้องเรียน'];
   const legendRank = value => { const index = legendOrder.indexOf(value); return index < 0 ? legendOrder.length : index; };
@@ -113,16 +114,24 @@ export function DonutChart({ title, rows: allRows, status, voice = false, select
   const dimmed = row => selected != null && selected !== row.value;
   // Try every starting angle and keep the one whose labels sit closest to their slices with no crossing leaders
   // (small neighbouring slices end up at the sides, where their labels can spread vertically).
-  let best = null;
-  for (let rotation = 0; rotation < 100; rotation++) {
-    const layout = layoutDonut(ordered, rotation, dimmed);
-    if (!best || layout.score < best.score - 0.5) best = layout;
-  }
-  const { slices, callouts } = best;
+  // The angle comes from the unselected data with nothing dimmed, so clicking slices keeps the donut where it was.
+  const rotation = useMemo(() => {
+    let best = null;
+    for (let turn = 0; turn < 100; turn++) {
+      const { score } = layoutDonut(layoutOrdered, turn, () => false);
+      if (!best || score < best.score - 0.5) best = { turn, score };
+    }
+    return best.turn;
+  }, [layoutOrdered.map(row => `${row.value}:${row.count}`).join('|')]);
+  const { slices, callouts } = layoutDonut(ordered, rotation, dimmed);
   return <Card title={title} className="chart-card live-donut reference-donut">
     {status !== 'ready' || !total ? <div className="overview-empty">{message(status)}</div> : <>
       <div className="donut-visual"><svg viewBox="-40 -12 680 336" aria-label={`${title} รวม ${numberLabel(total)} เรื่อง`}>
-        {slices.map(row => <path key={row.value} className="donut-slice" d={slicePath(row.drawStart, row.percentage)} style={{ fill: dimmed(row) ? '#e8e8e8' : colorFor(row.value, voice) }} aria-pressed={onSelect ? selected === row.value : undefined} tabIndex="0" role={onSelect ? 'button' : 'img'} aria-label={`${row.value}: ${numberLabel(row.count)} เรื่อง (${percentLabel(row.percentage)})`} onClick={onSelect ? () => onSelect(row.value) : undefined} onKeyDown={onSelect ? event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onSelect(row.value); } } : undefined}><title>{row.value}: {numberLabel(row.count)} เรื่อง ({percentLabel(row.percentage)})</title></path>)}
+        {slices.map(row => {
+          // Grey (dimmed) slices are not clickable; only the chosen slice can be clicked again to clear the selection.
+          const clickable = Boolean(onSelect) && !dimmed(row);
+          return <path key={row.value} className="donut-slice" d={slicePath(row.drawStart, row.percentage)} style={{ fill: dimmed(row) ? '#e8e8e8' : colorFor(row.value, voice) }} aria-pressed={clickable ? selected === row.value : undefined} tabIndex={clickable ? 0 : -1} role={clickable ? 'button' : 'img'} aria-label={`${row.value}: ${numberLabel(row.count)} เรื่อง (${percentLabel(row.percentage)})`} onClick={clickable ? () => onSelect(row.value) : undefined} onKeyDown={clickable ? event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onSelect(row.value); } } : undefined}><title>{row.value}: {numberLabel(row.count)} เรื่อง ({percentLabel(row.percentage)})</title></path>;
+        })}
         {callouts.map(row => {
           const end = row.right ? 632 : -32;
           const { label } = row;

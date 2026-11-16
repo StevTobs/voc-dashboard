@@ -31,7 +31,7 @@ export default function FilterBar({ detail = false, onApply, onReset }) {
     // Same rows the page will show (the detail page also narrows by การไฟฟ้า).
     const next = normalizeFilters(draft);
     const found = applyFilters(applyFilters(data.records, next), next, detail ? [OFFICE_FILTER] : []).length;
-    const extra = next.region.includes(TEST_REGION) ? applyFilters(data.testRecords, next).length : 0;
+    const extra = next.region.includes(TEST_REGION) ? applyFilters(data.testRecords, { ...next, region: [], office: [] }).length : 0;
     const extraText = extra ? ` · ข้อมูลส่วนเกิน ${count(extra)} เรื่อง (ไม่นับในสถิติ)` : '';
     if (found || extra) showToast('success', `ค้นหาสำเร็จ พบ ${count(found)} รายการ${extraText}`);
     else showToast('empty', 'ค้นหาสำเร็จ แต่ไม่พบข้อมูลตามตัวกรองที่เลือก');
